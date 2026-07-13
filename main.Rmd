@@ -1,0 +1,134 @@
+---
+title: "Islander"
+author:
+  - "Trần Việt Hà"
+  - "Nguyễn Đình Mai Vi"
+  - "Vũ Hà Thư"
+date: "`r format(Sys.Date(), '%d/%m/%Y')`"
+
+output:
+
+  pdf_document:
+    toc: false
+    toc_depth: 2
+    number_sections: true
+    latex_engine: xelatex
+    keep_tex: false
+  html_document:
+    toc: true
+    toc_depth: 2
+    number_sections: true
+    df_print: paged
+
+fontsize: 11pt
+geometry: margin=2.5cm
+mainfont: "Times New Roman"
+
+
+```{r setup, include=FALSE}
+# Render Unicode (Vietnamese) text in plots correctly.
+# The default pdf() device cannot draw Vietnamese diacritics, and cairo_pdf
+# is unavailable here (needs XQuartz). showtext draws text as glyphs from a
+# system font file, so it works on the default device with full Unicode.
+library(showtext)
+times_path <- "/System/Library/Fonts/Times.ttc"
+if (file.exists(times_path)) sysfonts::font_add("Times", regular = times_path)
+showtext_auto()
+
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.showtext = TRUE
+)
+```
+
+```{=latex}
+\begin{titlepage}
+\thispagestyle{empty}
+
+\begin{tikzpicture}[remember picture, overlay]
+  \draw[line width=2pt, blue!80!black]
+    ([xshift=0.9cm, yshift=-0.9cm]current page.north west)
+    rectangle
+    ([xshift=-0.9cm, yshift=0.9cm]current page.south east);
+  \draw[line width=0.5pt, blue!80!black]
+    ([xshift=1.1cm, yshift=-1.1cm]current page.north west)
+    rectangle
+    ([xshift=-1.1cm, yshift=1.1cm]current page.south east);
+\end{tikzpicture}
+
+\begin{center}
+
+\vspace*{0.8cm}
+{\LARGE\bfseries TRƯỜNG ĐẠI HỌC KHOA HỌC TỰ NHIÊN}\\[0.3em]
+{\LARGE\bfseries KHOA TOÁN -- TIN HỌC}
+
+\vspace{1.5cm}
+
+\includegraphics[width=4cm]{logo.png}
+
+\vspace{1.5cm}
+
+{\Large\bfseries BÁO CÁO}\\[0.5em]
+{\LARGE\bfseries MÔ HÌNH HÓA THỐNG KÊ}\\[0.7em]
+\rule{0.6\textwidth}{0.5pt}\\[0.6em]
+{\large Đề tài 4: \textbf{Islander}}
+
+\vspace{1.5cm}
+
+{\large Giảng viên hướng dẫn: \textbf{TS. Nguyễn Thị Mộng Ngọc}}
+
+\vspace{1.5cm}
+
+{\large\bfseries Nhóm 8}
+
+\vspace{0.6em}
+{\small
+\begin{tabular}{|l|c|p{5.5cm}|c|}
+\hline
+\textbf{Họ và Tên} & \textbf{Mã số HV} & \textbf{Công việc} & \textbf{Mức độ hoàn thành} \\
+\hline
+Trần Việt Hà       & 25C23020 & & 100\% \\
+\hline
+Nguyễn Đình Mai Vi & 25C23005 &                 & 100\% \\
+\hline
+Vũ Hà Thư          & 25C23004 &        & 100\% \\
+\hline
+\end{tabular}
+}
+
+\vfill
+
+{\large TP. Hồ Chí Minh, 2026}
+
+\vspace{0.8cm}
+\end{center}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+```
+
+
+```{r child="parts/DatVanDe.Rmd"}
+```
+
+```{r child="parts/DuLieuVaThietLap.Rmd"}
+```
+
+```{r child="parts/TieuChuanLuaChonBien.Rmd"}
+```
+
+```{r child="parts/PhuongPhapLuaChonMoHinh&KiemChungCheo.Rmd"}
+```
+
+
+```{r child="parts/LuaChonMoHinhVaBoostrap.Rmd"}
+```
+
+```{r child="parts/KiemChungCheo.Rmd"}
+```
+
+```{r child="parts/Tailieuthamkhao.Rmd"}
+```
