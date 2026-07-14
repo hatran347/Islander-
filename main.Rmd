@@ -14,6 +14,8 @@ output:
     number_sections: true
     latex_engine: xelatex
     keep_tex: false
+    includes:
+      in_header: header-includes.tex
   html_document:
     toc: true
     toc_depth: 2
@@ -23,7 +25,7 @@ output:
 fontsize: 11pt
 geometry: margin=2.5cm
 mainfont: "Times New Roman"
-
+---
 
 ```{r setup, include=FALSE}
 # Render Unicode (Vietnamese) text in plots correctly.
@@ -66,14 +68,14 @@ knitr::opts_chunk$set(
 
 \vspace{1.5cm}
 
-\includegraphics[width=4cm]{logo.png}
+\IfFileExists{logo.png}{\includegraphics[width=4cm]{logo.png}}{}
 
 \vspace{1.5cm}
 
 {\Large\bfseries BÁO CÁO}\\[0.5em]
 {\LARGE\bfseries MÔ HÌNH HÓA THỐNG KÊ}\\[0.7em]
 \rule{0.6\textwidth}{0.5pt}\\[0.6em]
-{\large Đề tài 4: \textbf{Islander}}
+{\large Bài thực hành 4: \textbf{Islander}}
 
 \vspace{1.5cm}
 
@@ -89,11 +91,11 @@ knitr::opts_chunk$set(
 \hline
 \textbf{Họ và Tên} & \textbf{Mã số HV} & \textbf{Công việc} & \textbf{Mức độ hoàn thành} \\
 \hline
-Trần Việt Hà       & 25C23020 & & 100\% \\
+Trần Việt Hà       & 25C23020 & \textit{[Điền nhiệm vụ]} & 100\% \\
 \hline
-Nguyễn Đình Mai Vi & 25C23005 &                 & 100\% \\
+Nguyễn Đình Mai Vi & 25C23005 & \textit{[Điền nhiệm vụ]} & 100\% \\
 \hline
-Vũ Hà Thư          & 25C23004 &        & 100\% \\
+Vũ Hà Thư          & 25C23004 & \textit{[Điền nhiệm vụ]} & 100\% \\
 \hline
 \end{tabular}
 }
@@ -114,21 +116,34 @@ Vũ Hà Thư          & 25C23004 &        & 100\% \\
 ```{r child="parts/DatVanDe.Rmd"}
 ```
 
-```{r child="parts/DuLieuVaThietLap.Rmd"}
+```{r child="parts/PhanChinh_1_2.Rmd"}
 ```
 
-```{r child="parts/TieuChuanLuaChonBien.Rmd"}
+```{r child="parts/PhanChinh_3.Rmd"}
 ```
 
-```{r child="parts/PhuongPhapLuaChonMoHinh&KiemChungCheo.Rmd"}
+```{r child="parts/PhanChinh_4.Rmd"}
 ```
 
-
-```{r child="parts/LuaChonMoHinhVaBoostrap.Rmd"}
+```{r child="parts/PhanChinh_5.Rmd"}
 ```
 
-```{r child="parts/KiemChungCheo.Rmd"}
+\newpage
+
+# Yêu cầu mở rộng (khuyến khích, không bắt buộc)
+
+```{r child="parts/Yeucauphu_1.Rmd"}
 ```
 
-```{r child="parts/Tailieuthamkhao.Rmd"}
+```{r child="parts/Yeucauphu_2.Rmd"}
 ```
+
+```{r child="parts/Yeucauphu_3.Rmd"}
+```
+
+```{r child="parts/Yeucauphu_4.Rmd"}
+```
+
+# Tài liệu tham khảo
+
+Almohalwas, A. *Memory Test on Drugged Islanders Data*. Kaggle. <https://www.kaggle.com/datasets/steveahn/memory-test-on-drugged-islanders-data>
