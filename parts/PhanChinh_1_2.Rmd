@@ -1,1 +1,392 @@
 
+
+```{r setup-phan-1-2, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      fig.align = "center", fig.width = 7.5, fig.height = 4.5)
+
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(gridExtra)
+library(scales)
+```
+
+# Giới thiệu bộ dữ liệu và mục tiêu phân tích
+
+Dữ liệu `Islander_data.csv` (Almohalwas, UCLA) ghi nhận một thử nghiệm về tác dụng phụ của thuốc chống trầm cảm lên khả năng gợi nhớ của người tham gia. Mỗi người được cho dùng **một trong ba loại thuốc** (`Drug`), ở **một trong ba mức hàm lượng** (`Dosage`), sau đó được gợi lại **một loại ký ức** — vui hoặc buồn (`Happy_Sad_group`) — trong 10 phút trước khi làm bài kiểm tra trí nhớ. Thời gian hoàn thành bài kiểm tra (giây) được ghi nhận **trước** (`Mem_Score_Before`) và **sau** (`Mem_Score_After`) khi tiếp xúc thuốc; `Diff = Mem_Score_After - Mem_Score_Before` là chênh lệch thời gian hoàn thành.
+
+Bộ dữ liệu gồm 198 quan trắc và 9 biến:
+
+```{r bang-bien-so, echo=FALSE}
+bien_mo_ta <- data.frame(
+  Bien = c("first_name", "last_name", "age", "Happy_Sad_group", "Dosage",
+           "Drug", "Mem_Score_Before", "Mem_Score_After", "Diff"),
+  Vai_tro = c("Định danh", "Định danh", "Biến số (covariate)",
+              "Nhân tố", "Nhân tố", "Nhân tố",
+              "Đo lường", "Đo lường", "Biến phụ thuộc (đề xuất)"),
+  Y_nghia = c(
+    "Tên của người tham gia",
+    "Họ của người tham gia",
+    "Tuổi (năm); toàn bộ người tham gia > 25 tuổi (thuỳ trán đã phát triển hoàn thiện)",
+    "Loại ký ức được gợi trước khi kiểm tra: H = Vui (Happy), S = Buồn (Sad)",
+    "Mức hàm lượng thuốc: 1 = Thấp, 2 = Trung bình, 3 = Cao",
+    "Loại thuốc: A = Alprazolam, T = Triazolam, S = Placebo (giả dược)",
+    "Thời gian (giây) hoàn thành bài kiểm tra TRƯỚC khi dùng thuốc",
+    "Thời gian (giây) hoàn thành bài kiểm tra SAU khi dùng thuốc",
+    "Diff = Mem_Score_After − Mem_Score_Before"
+  )
+)
+ten_file_csv <- if (knitr::is_latex_output()) "Islander\\_data.csv" else "Islander_data.csv"
+kable(bien_mo_ta, caption = paste("Mô tả các biến trong", ten_file_csv),
+      col.names = c("Biến", "Vai trò", "Ý nghĩa"), booktabs = TRUE) |>
+  kable_styling(latex_options = "hold_position", full_width = FALSE) |>
+  column_spec(1, width = "3cm") |>
+  column_spec(2, width = "3cm") |>
+  column_spec(3, width = "7cm")
+```
+
+**Lưu ý:** vì `Mem_Score` đo bằng *thời gian hoàn thành bài kiểm tra* nên thời gian **giảm** (Diff âm) tương ứng với việc gợi nhớ **nhanh hơn**, tức khả năng gợi nhớ **cải thiện**; ngược lại Diff dương nghĩa là khả năng gợi nhớ **suy giảm** sau khi dùng thuốc.
+
+## Mục tiêu đặt ra cho bài toán
+
+Yêu cầu của bài thực hành là xác định **những nhân tố nào ảnh hưởng đến khả năng gợi nhớ**, do đó cần một mô hình ANOVA **k nhân tố (k ≥ 2)**. Bộ dữ liệu cung cấp sẵn ba nhân tố phân loại tác động lên `Diff`:
+
+- `Drug` (3 mức: Alprazolam, Triazolam, Placebo),
+- `Dosage` (3 mức: Thấp, Trung bình, Cao),
+- `Happy_Sad_group` (2 mức: Happy, Sad),
+
+và một biến số liên tục `age` có thể đóng vai trò hiệp biến (covariate). Biến first_name và last_name chỉ mang ý nghĩa định danh người thử nghiệm, không có ý nghĩa để đưa vào mô hình.
+
+Trước khi đi vào xây dựng mô hình, ta cần:
+
+1.  Đảm bảo dữ liệu sạch, đúng kiểu, không mâu thuẫn trước khi đưa vào mô hình.
+2.  Kiểm tra thiết kế thí nghiệm có **cân bằng** hay không giữa các tổ hợp `Drug × Dosage × Happy_Sad_group` — điều này quyết định việc dùng ANOVA loại I, II hay III ở Phần 3.
+3.  Quan sát trực quan xu hướng ảnh hưởng (và tương tác) của từng nhân tố lên `Diff`, làm cơ sở đặt giả thuyết cho mô hình ANOVA nhiều nhân tố:
+    $$Diff_{ijkl} = \mu + \alpha_i + \beta_j + \gamma_k + (\alpha\beta)_{ij} +
+     (\alpha\gamma)_{ik} + (\beta\gamma)_{jk} + (\alpha\beta\gamma)_{ijk} +
+    \epsilon_{ijkl}$$ với $\alpha_i$: hiệu ứng `Drug`, $\beta_j$: hiệu
+    ứng `Dosage`, $\gamma_k$: hiệu ứng `Happy_Sad_group`.
+
+------------------------------------------------------------------------
+
+# Tiền xử lý dữ liệu
+
+## Đọc và khám phá cấu trúc dữ liệu
+
+```{r doc-du-lieu}
+df <- read.csv(here::here("Islander_data.csv"), stringsAsFactors = FALSE)
+dim(df)
+str(df)
+```
+
+```{r xem-truoc}
+head(df)
+summary(df)
+```
+
+## Kiểm tra giá trị thiếu và trùng lặp
+
+```{r missing-check}
+colSums(is.na(df))
+```
+
+Không có giá trị thiếu ở bất kỳ biến nào.
+
+```{r duplicate-check}
+sum(duplicated(df))                                  # trùng toàn bộ hàng
+sum(duplicated(df[, c("first_name", "last_name")]))  # trùng tên người
+```
+
+Không có hàng nào trùng lặp hoàn toàn. Có 16 cặp tên trùng nhau (ví dụ "Kaito McCarthy" xuất hiện 2 lần) nhưng các hàng này khác nhau ở `Dosage`/`Drug`/`Happy_Sad_group`/kết quả đo — nhiều khả năng do tên giả (được tạo tự động) bị trùng ngẫu nhiên giữa các người tham gia khác nhau, không phải lỗi nhập liệu, nên được giữ nguyên.
+
+## Kiểm tra biến `age`
+
+```{r age-check}
+range(df$age)
+table(df$age <= 25)
+```
+
+Mô tả đề bài nêu người tham gia đều trên 25 tuổi, tuy nhiên có 1/198 quan trắc ở tuổi 24 (10 quan trắc khác đúng bằng 25). Sai lệch này rất nhỏ và có thể lúc quan sát người tham gia đó đã đủ tuổi nên vẫn nằm trong danh sách, không ảnh hưởng đáng kể đến phân tích nên được giữ lại, không loại bỏ.
+
+## Kiểm tra tính nhất quán của biến `Diff`
+
+```{r diff-consistency}
+max(abs(df$Mem_Score_After - df$Mem_Score_Before - df$Diff))
+```
+
+Sai số tối đa xấp xỉ 0 (chỉ do làm tròn số) — xác nhận `Diff` được tính đúng bằng `Mem_Score_After - Mem_Score_Before`.
+
+## Mã hoá biến phân loại
+
+`Dosage` đang ở dạng số (1/2/3) nhưng bản chất là nhân tố có thứ tự; `Drug` và `Happy_Sad_group` là ký tự viết tắt. Để tránh nhầm lẫn — đặc biệt là `Drug = "S"` (Placebo) dễ gây nhầm với `Happy_Sad_group = "S"` (Sad) — ta mã hoá lại thành factor với nhãn đầy đủ, đồng thời đặt `Placebo` làm mức tham chiếu (baseline) cho `Drug` để thuận tiện diễn giải hệ số khi chạy mô hình:
+
+```{r encode-factors}
+# Bọc trong if() để chunk này "idempotent": nếu lỡ chạy lại (Run chunk) nhiều
+# lần trong cùng phiên R, Drug/Happy_Sad_group đã là factor với nhãn đầy đủ
+# (Alprazolam/Happy/...) sẽ KHÔNG bị đối chiếu nhầm với levels gốc ("A"/"H")
+# lần nữa -- tránh lỗi toàn bộ giá trị biến thành NA (0 quan sát ở mọi ô).
+if (!is.factor(df$Drug)) {
+  df <- df |>
+    mutate(
+      Dosage_f = factor(Dosage, levels = c(1, 2, 3),
+                         labels = c("Low", "Medium", "High"),
+                         ordered = TRUE),
+      Drug = factor(Drug, levels = c("A", "T", "S"),
+                    labels = c("Alprazolam", "Triazolam", "Placebo")),
+      Drug = relevel(Drug, ref = "Placebo"),
+      Happy_Sad_group = factor(Happy_Sad_group, levels = c("H", "S"),
+                                labels = c("Happy", "Sad"))
+    )
+}
+
+levels(df$Dosage_f); levels(df$Drug); levels(df$Happy_Sad_group)
+```
+
+## Kiểm tra thiết kế thí nghiệm (số quan trắc mỗi tổ hợp nhân tố)
+
+```{r balance-check}
+bang_can_bang <- df |>
+  count(Drug, Dosage_f, Happy_Sad_group) |>
+  pivot_wider(names_from = Happy_Sad_group, values_from = n)
+
+kable(bang_can_bang, caption = "Số quan trắc theo từng tổ hợp Drug x Dosage x Happy_Sad_group")
+```
+
+Thiết kế **gần cân bằng**: mỗi tổ hợp trong số 18 tổ hợp `Drug × Dosage × Happy_Sad_group` có 10–12 quan trắc (198 quan trắc / 18 tổ hợp ≈ 11). Vì không hoàn toàn cân bằng tuyệt đối, ở Phần 3 cần cân nhắc dùng bảng ANOVA loại II hoặc III (thay vì loại I vốn nhạy với thứ tự đưa biến vào mô hình khi mất cân bằng).
+
+## Kiểm tra giá trị bất thường (outlier)
+
+```{r outlier-check}
+tim_outlier_iqr <- function(x) {
+  q <- quantile(x, c(0.25, 0.75))
+  iqr <- diff(q)
+  x < (q[1] - 1.5 * iqr) | x > (q[2] + 1.5 * iqr)
+}
+
+df |>
+  summarise(
+    n_outlier_age    = sum(tim_outlier_iqr(age)),
+    n_outlier_before  = sum(tim_outlier_iqr(Mem_Score_Before)),
+    n_outlier_after   = sum(tim_outlier_iqr(Mem_Score_After)),
+    n_outlier_diff    = sum(tim_outlier_iqr(Diff))
+  ) |>
+  kable(caption = "So luong quan trac bat thuong (1.5*IQR) theo tung bien")
+```
+
+### Danh sách chi tiết từng biến
+
+```{r outlier-list-age-before-after}
+df |>
+  filter(tim_outlier_iqr(age)) |>
+  select(age, Drug, Dosage_f, Happy_Sad_group) |>
+  kable(caption = "Quan trac bat thuong: age")
+
+df |>
+  filter(tim_outlier_iqr(Mem_Score_Before)) |>
+  select(Mem_Score_Before, Drug, Dosage_f, Happy_Sad_group) |>
+  kable(caption = "Quan trac bat thuong: Mem_Score_Before")
+
+df |>
+  filter(tim_outlier_iqr(Mem_Score_After)) |>
+  select(Mem_Score_After, Drug, Dosage_f, Happy_Sad_group) |>
+  kable(caption = "Quan trac bat thuong: Mem_Score_After")
+
+df |>
+  filter(tim_outlier_iqr(Diff)) |>
+  arrange(Diff) |>
+  select(Diff, Drug, Dosage_f, Happy_Sad_group) |>
+  kable(caption = "Cac quan trac co Diff bat thuong theo quy tac 1.5*IQR")
+```
+
+`age` có 2 điểm bất thường (83 và 80 tuổi — người tham gia lớn tuổi hơn hẳn phần còn lại nhưng vẫn hợp lệ), `Mem_Score_Before` có 1 điểm, `Mem_Score_After` có 2 điểm — và cả 2 điểm này đều rơi vào nhóm **Alprazolam, hàm lượng Cao**, trùng khớp với các điểm bất thường của `Diff`. `Diff` có nhiều điểm bất thường nhất (20 điểm).
+
+### Deep dive: phân phối của `Diff` quanh các điểm bất thường
+
+```{r outlier-diff-deepdive, fig.height=4}
+df <- df |> mutate(Diff_outlier = tim_outlier_iqr(Diff))
+
+q_diff      <- quantile(df$Diff, c(0.25, 0.75))
+iqr_diff    <- diff(q_diff)
+nguong_duoi <- q_diff[1] - 1.5 * iqr_diff
+nguong_tren <- q_diff[2] + 1.5 * iqr_diff
+
+p_box <- ggplot(df, aes(x = "", y = Diff)) +
+  geom_boxplot(outlier.shape = NA, fill = "steelblue", alpha = 0.3, width = 0.3) +
+  geom_jitter(aes(color = Diff_outlier), width = 0.08, size = 2, alpha = 0.8) +
+  scale_color_manual(values = c(`FALSE` = "grey40", `TRUE` = "firebrick")) +
+  labs(title = "Boxplot Diff - danh dau outlier", x = NULL, y = "Diff (giay)", color = "Outlier")
+
+p_hist <- ggplot(df, aes(x = Diff, fill = Diff_outlier)) +
+  geom_histogram(bins = 30, color = "white") +
+  geom_vline(xintercept = c(nguong_duoi, nguong_tren), linetype = "dashed", color = "firebrick") +
+  scale_fill_manual(values = c(`FALSE` = "steelblue", `TRUE` = "firebrick")) +
+  labs(title = "Phan phoi Diff - nguong 1.5xIQR", x = "Diff (giay)", y = "So quan trac", fill = "Outlier")
+
+grid.arrange(p_box, p_hist, ncol = 2)
+```
+
+```{r outlier-diff-by-group}
+df |>
+  group_by(Drug, Dosage_f) |>
+  summarise(n = n(), n_outlier_diff = sum(Diff_outlier), .groups = "drop") |>
+  mutate(ty_le_outlier = percent(n_outlier_diff / n, accuracy = 0.1)) |>
+  arrange(desc(n_outlier_diff)) |>
+  kable(caption = "So luong / ty le quan trac Diff bat thuong theo tung to hop Drug x Dosage")
+```
+
+Nhìn vào histogram, phần đuôi phải vượt ngưỡng trên (\~19.6 giây) chính là nhóm màu đỏ; bảng theo tổ hợp `Drug × Dosage` cho thấy rõ hơn: riêng ô **Alprazolam × Cao** có tới **14/22 quan trắc (63.6%)** bị gắn nhãn "bất thường" theo quy tắc 1.5×IQR — tỷ lệ này cao vượt trội so với mọi ô còn lại (≤ 9.5%). Điều này khẳng định các giá trị `Diff` cực trị **không phải nhiễu ngẫu nhiên** mà là **hiệu ứng thật, tập trung có hệ thống** ở nhóm dùng Alprazolam liều cao. Vì vậy các giá trị này **không được loại bỏ hay winsorize**: loại bỏ chúng sẽ xoá đi chính tín hiệu mà ANOVA cần phát hiện. Đây là điểm cần lưu ý khi kiểm định giả định phương sai đồng nhất ở Phần 3 (nhóm Alprazolam × Cao nhiều khả năng có phương sai `Diff` lớn hơn hẳn các nhóm khác).
+
+## Dữ liệu sau tiền xử lý
+
+```{r du-lieu-final}
+df_model <- df |>
+  select(age, Happy_Sad_group, Dosage_f, Drug,
+         Mem_Score_Before, Mem_Score_After, Diff)
+
+str(df_model)
+```
+
+Bộ dữ liệu `df_model` (198 quan trắc, không có ID) sẽ được dùng cho các bước trực quan hoá và mô hình hoá tiếp theo.
+
+------------------------------------------------------------------------
+
+# Trực quan hoá dữ liệu
+
+## Phân phối của biến phụ thuộc `Diff`
+
+```{r eda-diff-dist}
+p1 <- ggplot(df_model, aes(x = Diff)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 30,
+                  fill = "steelblue", color = "white") +
+  geom_density(color = "firebrick", linewidth = 0.8) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  labs(title = "Phan phoi Diff (Sau - Truoc)", x = "Diff (giay)", y = "Mat do")
+
+p2 <- ggplot(df_model, aes(sample = Diff)) +
+  stat_qq(color = "steelblue") + stat_qq_line(color = "firebrick") +
+  labs(title = "QQ-plot cua Diff")
+
+grid.arrange(p1, p2, ncol = 2)
+
+df_model |>
+  summarise(mean = mean(Diff), sd = sd(Diff), median = median(Diff),
+            skewness = mean((Diff - mean(Diff))^3) / sd(Diff)^3)
+```
+
+`Diff` có phân phối lệch phải nhẹ (đuôi phải dài hơn, chủ yếu do nhóm Alprazolam liều cao), trung bình dương (\~2.95 giây) cho thấy **trung bình chung, thời gian hoàn thành bài kiểm tra tăng nhẹ sau khi dùng thuốc** — tức khả năng gợi nhớ có xu hướng suy giảm nhẹ, nhưng mức độ khác nhau rõ rệt giữa các nhóm (xem các biểu đồ bên dưới).
+
+## `Diff` theo từng nhân tố
+
+```{r eda-boxplots, fig.height=4}
+p_drug <- ggplot(df_model, aes(x = Drug, y = Diff, fill = Drug)) +
+  geom_boxplot(show.legend = FALSE) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(title = "Diff theo Drug", x = NULL, y = "Diff (giay)")
+
+p_dosage <- ggplot(df_model, aes(x = Dosage_f, y = Diff, fill = Dosage_f)) +
+  geom_boxplot(show.legend = FALSE) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(title = "Diff theo Dosage", x = NULL, y = "Diff (giay)")
+
+p_group <- ggplot(df_model, aes(x = Happy_Sad_group, y = Diff, fill = Happy_Sad_group)) +
+  geom_boxplot(show.legend = FALSE) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(title = "Diff theo Happy_Sad_group", x = NULL, y = "Diff (giay)")
+
+grid.arrange(p_drug, p_dosage, p_group, ncol = 3)
+```
+
+Quan sát ban đầu:
+
+- **Drug**: nhóm Alprazolam có `Diff` trung vị cao hơn rõ rệt và phân tán rộng hơn nhiều so với Triazolam và Placebo — gợi ý Alprazolam làm giảm khả năng gợi nhớ nhiều nhất.
+- **Dosage**: `Diff` có xu hướng tăng dần theo hàm lượng (Thấp → Cao), phù hợp với giả thuyết liều cao gây suy giảm gợi nhớ mạnh hơn.
+- **Happy_Sad_group**: chênh lệch giữa Happy và Sad không rõ rệt bằng hai nhân tố trên, cần kiểm định thêm.
+
+## Tổ hợp Drug × Dosage (kiểm tra xu hướng và khả năng tương tác)
+
+```{r eda-drug-dosage}
+ggplot(df_model, aes(x = Dosage_f, y = Diff, fill = Drug)) +
+  geom_boxplot() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(title = "Diff theo Dosage, phan theo Drug", x = "Dosage", y = "Diff (giay)")
+```
+
+Xu hướng tăng của `Diff` theo `Dosage` chỉ thể hiện rõ ở nhóm **Alprazolam**; Triazolam và Placebo gần như không đổi theo hàm lượng. Đây là dấu hiệu cho thấy **có thể tồn tại tương tác `Drug × Dosage`** — cần đưa số hạng tương tác vào mô hình ANOVA ở Phần 3 thay vì chỉ dùng mô hình cộng (additive).
+
+## Biểu đồ tương tác (interaction plots) giữa các cặp nhân tố
+
+```{r eda-interaction, fig.height=4}
+tb_drug_dosage <- df_model |>
+  group_by(Drug, Dosage_f) |>
+  summarise(Diff_tb = mean(Diff), .groups = "drop")
+
+ia1 <- ggplot(tb_drug_dosage, aes(x = Dosage_f, y = Diff_tb, color = Drug, group = Drug)) +
+  geom_line(linewidth = 0.9) + geom_point(size = 2) +
+  labs(title = "Tuong tac Drug x Dosage", x = "Dosage", y = "Diff trung binh")
+
+tb_drug_group <- df_model |>
+  group_by(Drug, Happy_Sad_group) |>
+  summarise(Diff_tb = mean(Diff), .groups = "drop")
+
+ia2 <- ggplot(tb_drug_group, aes(x = Happy_Sad_group, y = Diff_tb, color = Drug, group = Drug)) +
+  geom_line(linewidth = 0.9) + geom_point(size = 2) +
+  labs(title = "Tuong tac Drug x Happy_Sad_group", x = "Happy_Sad_group", y = "Diff trung binh")
+
+tb_dosage_group <- df_model |>
+  group_by(Dosage_f, Happy_Sad_group) |>
+  summarise(Diff_tb = mean(Diff), .groups = "drop")
+
+ia3 <- ggplot(tb_dosage_group, aes(x = Happy_Sad_group, y = Diff_tb, color = Dosage_f, group = Dosage_f)) +
+  geom_line(linewidth = 0.9) + geom_point(size = 2) +
+  labs(title = "Tuong tac Dosage x Happy_Sad_group", x = "Happy_Sad_group", y = "Diff trung binh")
+
+grid.arrange(ia1, ia2, ia3, ncol = 2)
+```
+
+Các đường không song song rõ nhất ở biểu đồ `Drug × Dosage`, củng cố nhận định ở trên. Hai biểu đồ còn lại có đường gần song song hơn, gợi ý tương tác (nếu có) với `Happy_Sad_group` yếu hơn — nhưng đây chỉ là quan sát trực quan, cần được kiểm định chính thức (F-test tương tác) ở mô hình.
+
+## Vai trò của biến số `age`
+
+```{r eda-age}
+ggplot(df_model, aes(x = age, y = Diff)) +
+  geom_point(alpha = 0.5, color = "steelblue") +
+  geom_smooth(method = "lm", se = TRUE, color = "firebrick") +
+  labs(title = "Quan he giua Age va Diff", x = "Tuoi", y = "Diff (giay)")
+
+cor(df_model$age, df_model$Diff)
+```
+
+Tương quan giữa `age` và `Diff` rất yếu (gần 0), đường hồi quy gần như nằm ngang — `age` nhiều khả năng **không phải là hiệp biến quan trọng** cho `Diff` trong bộ dữ liệu này, nhưng vẫn có thể được đưa vào mô hình ANOVA để kiểm tra chính thức.
+
+## So sánh thời gian hoàn thành trước và sau khi dùng thuốc
+
+```{r eda-before-after}
+df_long <- df_model |>
+  mutate(id = row_number()) |>
+  pivot_longer(cols = c(Mem_Score_Before, Mem_Score_After),
+               names_to = "Time", values_to = "Mem_Score") |>
+  mutate(Time = factor(Time, levels = c("Mem_Score_Before", "Mem_Score_After"),
+                        labels = c("Truoc", "Sau")))
+
+ggplot(df_long, aes(x = Time, y = Mem_Score)) +
+  geom_boxplot(aes(fill = Time), show.legend = FALSE) +
+  geom_line(aes(group = id), alpha = 0.08) +
+  facet_wrap(~Drug) +
+  labs(title = "Thoi gian hoan thanh bai kiem tra: Truoc vs Sau, theo Drug",
+       x = NULL, y = "Thoi gian (giay)")
+```
+
+Với Alprazolam, phân phối "Sau" dịch chuyển lên rõ rệt so với "Trước" (thời gian tăng — gợi nhớ chậm hơn); với Triazolam và Placebo, hai phân phối gần như trùng nhau. Vì `Mem_Score_Before`/`Mem_Score_After` là **hai phép đo lặp trên cùng một người**, đây cũng là gợi ý để thử mô hình ANOVA đo lặp (Repeated Measures/Mixed ANOVA) với nhân tố `Time` ở phần mở rộng.
+
+------------------------------------------------------------------------
+
+# Tóm tắt định hướng cho Phần 3 (ANOVA nhiều nhân tố)
+
+Từ tiền xử lý và trực quan hoá, có thể rút ra:
+
+1.  Dữ liệu sạch (không thiếu, không trùng lặp bất thường), thiết kế gần cân bằng giữa 18 tổ hợp `Drug × Dosage × Happy_Sad_group` (10–12 quan trắc/ô).
+2.  Biến phụ thuộc phù hợp cho ANOVA k nhân tố (k ≥ 2) là `Diff`, với ba nhân tố phân loại `Drug`, `Dosage`, `Happy_Sad_group`.
+3.  Quan sát trực quan cho thấy `Drug` và `Dosage` có ảnh hưởng rõ nhất lên `Diff`, và có dấu hiệu **tương tác `Drug × Dosage`** cần đưa vào mô hình; `Happy_Sad_group` và `age` có ảnh hưởng chưa rõ ràng, cần kiểm định chính thức.
+4.  Các giá trị `Diff` cực trị ở nhóm Alprazolam liều cao được giữ nguyên vì phản ánh hiệu ứng thật — cần lưu ý khi kiểm tra giả định phương sai đồng nhất (Levene/Bartlett) ở Phần 3.
+
+Mô hình đề xuất cho Phần 3: ANOVA ba nhân tố `Diff ~ Drug * Dosage * Happy_Sad_group`, sau đó kiểm tra các giả định (chuẩn, đồng nhất phương sai, độc lập) và rút gọn mô hình nếu tương tác bậc ba không có ý nghĩa.
