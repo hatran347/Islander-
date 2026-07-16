@@ -31,11 +31,15 @@ if (!exists("df_model")) {
 
 ### Lý do lựa chọn mô hình
 
-Ở phần chính, biến phụ thuộc được dùng là `Diff = Mem_Score_After - Mem_Score_Before`, tức là hai lần đo trên cùng một người đã được **gộp lại thành một con số duy nhất** trước khi đưa vào ANOVA. Cách làm này đơn giản và hợp lý, nhưng có một hạn chế: nó không cho phép kiểm định **hiệu ứng chính của thời điểm đo (Time)** — tức là nếu đặt câu hỏi "nhìn chung, thời gian hoàn thành bài kiểm tra có thay đổi có ý nghĩa từ Trước sang Sau hay không?" — vì phép trừ đã loại bỏ thông tin đó ngay từ đầu; ta chỉ còn kiểm định được liệu **mức độ thay đổi** có khác nhau giữa các nhóm hay không.
+Ở phần chính, biến phụ thuộc được dùng là
+
+`Diff = Mem_Score_After - Mem_Score_Before`,
+
+tức hai lần đo trên cùng một người được rút gọn thành một giá trị duy nhất trước khi đưa vào mô hình ANOVA. Cách tiếp cận này đơn giản và phù hợp để đánh giá mức thay đổi giữa các nhóm, tuy nhiên nó không còn cho phép kiểm định trực tiếp **hiệu ứng chính của thời điểm đo (Time)**. Nói cách khác, mô hình không trả lời được câu hỏi liệu điểm ghi nhớ của toàn bộ mẫu có thay đổi có ý nghĩa từ Before sang After hay không, mà chỉ đánh giá xem mức thay đổi giữa các nhóm có khác nhau hay không.
 
 Vì `Mem_Score_Before` và `Mem_Score_After` là **hai phép đo lặp trên cùng một người tham gia**, mô hình phù hợp hơn về mặt thống kê là một **ANOVA nhiều nhân tố với dữ liệu lặp** (*Repeated Measures / Mixed ANOVA*, còn gọi là *split-plot ANOVA*), trong đó:
 
-- `Time` (Before, After) là **nhân tố nội đối tượng** (within-subject factor) — mỗi người tham gia được đo ở cả hai mức của `Time`.
+- `Time` (Before, After) là **nhân tố lặp** (within-subject factor) — mỗi người tham gia được đo ở cả hai mức của `Time`.
 - `Drug`, `Dosage`, `Happy_Sad_group` vẫn là **nhân tố liên đối tượng** (between-subject factor) — mỗi người chỉ nhận đúng một loại thuốc, một hàm lượng, một nhóm ký ức.
 
 Mô hình dạng này cho phép tách rõ:
@@ -75,16 +79,14 @@ Dữ liệu sau khi pivot có $198 \times 2 = 396$ dòng: mỗi người tham gi
 
 Mô hình đầy đủ:
 
-$$
-\begin{aligned}
+$$\begin{aligned}
 Y_{ijklm} &= \mu + \alpha_i + \beta_j + \gamma_k + \tau_l \\
 &\quad + (\alpha\beta)_{ij} + (\alpha\gamma)_{ik} + (\beta\gamma)_{jk} \\
 &\quad + (\alpha\tau)_{il} + (\beta\tau)_{jl} + (\gamma\tau)_{kl} \\
 &\quad + (\alpha\beta\gamma)_{ijk} + (\alpha\beta\tau)_{ijl} + (\alpha\gamma\tau)_{ikl} + (\beta\gamma\tau)_{jkl} \\
 &\quad + (\alpha\beta\gamma\tau)_{ijkl} \\
 &\quad + \pi_{m(ijk)} + \epsilon_{ijklm}
-\end{aligned}
-$$
+\end{aligned}$$
 
 với:
 
@@ -95,23 +97,13 @@ với:
 
 Vì `Time` chỉ có **đúng 2 mức**, giả định *sphericity* (thường phải kiểm định bằng Mauchly's test khi nhân tố lặp có ≥ 3 mức) được **thoả mãn một cách hiển nhiên** — với 2 mức chỉ có một hiệu số duy nhất nên không có gì để kiểm tra tính đồng nhất phương sai hiệp phương sai giữa các cặp mức. Đây là một điểm thuận lợi giúp đơn giản hoá việc áp dụng mô hình.
 
-### Mở rộng: đưa `age` vào mô hình (ANCOVA)
-
-Ở Phần tiền xử lý/trực quan hoá, tương quan thô giữa `age` và `Diff` gần như bằng 0 ($r \approx -0{,}009$), nhưng đó chỉ là tương quan đơn biến, chưa kiểm soát các nhân tố khác. Để kiểm định chính thức thay vì chỉ dựa vào tương quan thô, `age` được đưa vào mô hình như một **hiệp biến liên tục** (ANCOVA), với hai vai trò tương ứng hai tầng sai số:
-
-$$Y_{ijklm} = \cdots + \delta \cdot \text{age}_m + \delta_\tau \cdot
-(\text{age}_m \times \tau_l) + \pi_{m(ijk)} + \epsilon_{ijklm}$$
-
-- $\delta \cdot \text{age}_m$: hiệu ứng chính của `age` — người tham gia lớn tuổi hơn có mức năng lực nền (`Mem_Score_Before + Mem_Score_After`) khác người trẻ hơn hay không? (thuộc tầng `Error: Subject`);
-- $\delta_\tau \cdot (\text{age}_m \times \tau_l)$: tương tác `age:Time` — tuổi có làm thay đổi **mức độ** biến động trí nhớ trước/sau hay không? (thuộc tầng `Error: Subject:Time`, đây chính là phần kiểm định chính thức cho câu hỏi đặt ra ở Phần tiền xử lý).
-
 ### Khớp mô hình
 
 Mô hình trên được ước lượng bằng `aov()` với số hạng `Error()` để khai báo đúng hai tầng sai số (giữa đối tượng và trong nội bộ đối tượng), có thêm `age` và `age:Time`:
 
 ```{r fit-mixed-anova}
 model_rm_full <- aov(
-  Mem_Score ~ Drug * Dosage_f * Happy_Sad_group * Time + age + age:Time +
+  Mem_Score ~ Drug * Dosage_f * Happy_Sad_group * Time +
     Error(Subject / Time),
   data = df_rm
 )
@@ -129,15 +121,14 @@ Ta có hai bảng:
 
 **Trong bảng `Error: Subject`:** — trả lời cho câu hỏi: "Nếu bỏ qua yếu tố thời gian (Before/After), các nhóm có khác nhau về điểm ghi nhớ trung bình hay không?"
 
-Ta thấy, với mức ý nghĩa 5%, mọi $p$-value đều $> 0.05$ (`Drug` gần ngưỡng nhất, $p \approx 0{,}082$) — cho thấy không có hiệu ứng chính hay hiệu ứng tương tác nào đạt ý nghĩa thống kê ở mức $\alpha = 5%$. Điều này có thể dẫn đến kết luận khi chưa xét đến yếu tố thời gian, điểm ghi nhớ trung bình không khác biệt đáng kể giữa các nhóm Drug, Dosage, Happy/Sad hay Age.
+Ta thấy, với mức ý nghĩa 5%, mọi $p$-value đều $> 0.05$ (`Drug` gần ngưỡng nhất, $p \approx 0{,}082$) — cho thấy không có hiệu ứng chính hay hiệu ứng tương tác nào đạt ý nghĩa thống kê ở mức $\alpha = 5%$. Điều này cho thấy, khi bỏ qua yếu tố thời gian (Before/After), **không có bằng chứng thống kê** cho thấy mức thay đổi trí nhớ trung bình khác biệt giữa các nhóm Drug, Dosage, Happy/Sad hoặc giữa các mức tương tác của chúng.
 
 **Trong bảng `Error: Subject:Time`** — trả lời trực tiếp câu hỏi "nhân tố nào ảnh hưởng đến khả năng gợi nhớ, xét theo mức thay đổi trước/sau". Xét với mức ý nghĩa $\alpha = 5%$:
 
-- `Time`: $F(1,179) \approx 27.41$, $p \approx 4{,}6\times10^{-7}$ — **rất có ý nghĩa**. Xét chung toàn mẫu, thời gian hoàn thành bài kiểm tra tăng có ý nghĩa sau khi dùng thuốc (Diff trung bình $\approx 2{,}95$ giây $> 0$), tức khả năng gợi nhớ suy giảm nhẹ nhưng có ý nghĩa ở mức tổng thể.
-- `Drug:Time`: $F(2,179) \approx 34.13$, $p < 0{,}0001$ — loại thuốc ảnh hưởng rất mạnh đến mức thay đổi.
-- `Dosage_f:Time`: $F(2,179) \approx 9.76$, $p \approx 0{,}0001$ — hàm lượng thuốc cũng ảnh hưởng có ý nghĩa đến mức thay đổi.
+- `Time`: $F(1,179) \approx 27.41$, $p \approx 4{,}6\times10^{-7}$ — **rất có ý nghĩa**. Xét chung toàn mẫu, cho thấy giá trị trung bình của biến phản hồi thay đổi đáng kể giữa hai thời điểm Before và After (Diff trung bình $\approx 2{,}95$ giây $> 0$), điều này chứng tỏ việc đo trước và sau can thiệp tạo ra sự khác biệt có ý nghĩa trên toàn bộ mẫu.
+- `Drug:Time`: $F(2,179) \approx 34.13$, $p < 0{,}0001$ — các loại thuốc không tạo ra cùng một mức thay đổi theo thời gian.
+- `Dosage_f:Time`: $F(2,179) \approx 9.76$, $p \approx 0{,}0001$ — Có tương tác giữa Dosage và Time, cho thấy mức thay đổi trí nhớ theo thời gian khác nhau giữa các mức liều lượng.
 - `Happy_Sad_group:Time`: $F(1,179) \approx 0.13$, $p \approx 0{,}72$ — **không có ý nghĩa**; loại cảm xúc tại thời điểm đó (vui/buồn) không ảnh hưởng đến mức thay đổi trí nhớ.
-- `Time:age`: $F(1,179) \approx 0.33$, $p \approx 0{,}569$ — **không có ý nghĩa**. Sau khi đã kiểm soát `Drug`, `Dosage`, `Happy_Sad_group`, tuổi tác vẫn **không** làm thay đổi mức độ biến động trí nhớ trước/sau một cách có ý nghĩa thống kê — củng cố chính thức cho quan sát tương quan gần 0 đã thấy ở Phần tiền xử lý.
-- `Drug:Dosage_f:Time`: $F(4,179) \approx 20.50$, $p < 0{,}0001$ — **tương tác rất mạnh**: mức ảnh hưởng của hàm lượng phụ thuộc vào loại thuốc, khớp với quan sát ở Phần tiền xử lý/trực quan hoá rằng chỉ với thuốc Alprazolam thì mức thay đổi trí nhớ mới tăng dần theo hàm lượng.
+- `Drug:Dosage_f:Time`: $F(4,179) \approx 20.50$, $p < 0{,}0001$ — **tương tác khá mạnh**: mức ảnh hưởng của hàm lượng phụ thuộc vào loại thuốc, điều này phù hợp với xu hướng quan sát được ở phần trực quan hóa, trong đó mức thay đổi ở nhóm Alprazolam có xu hướng tăng theo liều lượng. Tuy nhiên, để xác định chính xác nhóm nào khác biệt cần thực hiện thêm phân tích hậu kiểm hoặc khảo sát các hiệu ứng đơn giản (simple effects) để xác định cụ thể tổ hợp Drug × Dosage × Happy/Sad nào tạo nên sự khác biệt.
 - `Drug:Happy_Sad_group:Time` ($p \approx 0{,}375$) và `Dosage_f:Happy_Sad_group:Time` ($p \approx 0{,}956$) — cả hai **không có ý nghĩa**.
 - `Drug:Dosage_f:Happy_Sad_group:Time`: $F(4,179) \approx 2.50$, $p \approx 0{,}044$ — **có ý nghĩa ở mức 5%** (dù khá sát ngưỡng). Điều này cho thấy mức tương tác `Drug × Dosage` lên sự thay đổi trí nhớ **còn khác nhau đôi chút** giữa nhóm tâm trạng — cần xem kiểm định thêm.
