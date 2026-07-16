@@ -25,6 +25,8 @@ output:
 fontsize: 11pt
 geometry: margin=2.5cm
 mainfont: "Times New Roman"
+bibliography: references.bib
+link-citations: true
 ---
 
 ```{r setup, include=FALSE}
@@ -130,7 +132,7 @@ Vũ Hà Thư          & 25C23004 & \textit{[Điền nhiệm vụ]} & 100\% \\
 
 \newpage
 
-# Xây dựng mô hình ANOVA nhiều nhân tố với dữ liệu lặp (Repeated Measures / Mixed ANOVA)
+# Yêu cầu mở rộng (khuyến khích, không bắt buộc)
 
 ```{r child="parts/Yeucauphu_1.Rmd"}
 ```

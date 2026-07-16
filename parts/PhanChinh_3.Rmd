@@ -1,1 +1,290 @@
+# Phần 3: Phân tích phương sai ba nhân tố theo cách tiếp cận hồi quy tuyến tính
 
+## Cấu trúc dữ liệu và lựa chọn biến phụ thuộc
+
+Việc lựa chọn phương pháp kiểm định phù hợp phụ thuộc trực tiếp vào cấu trúc phụ thuộc/độc lập của dữ liệu.
+
+Về biến phụ thuộc, mỗi người tham gia được đo hai lần trên cùng một cá thể — `Mem_Score_Before` và `Mem_Score_After` — nên đây là một cặp đo lặp lại (paired): người có kết quả tốt ở lần đo trước có xu hướng cũng đạt kết quả tốt ở lần đo sau, hai giá trị này không độc lập với nhau. Về biến giải thích, mỗi người chỉ thuộc đúng một nhóm `Drug` và một mức `Dosage` — không có người nào xuất hiện ở hai loại thuốc hoặc hai mức liều khác nhau — nên các nhóm `Drug`/`Dosage` là độc lập với nhau.
+
+Do dữ liệu có cấu trúc trước–sau phụ thuộc trên từng cá thể trong khi mục tiêu phân tích là so sánh giữa các nhóm độc lập (`Drug`, `Dosage`), bài làm sử dụng biến `Diff = After - Before` cho từng người. Biến `Diff` gói gọn toàn bộ thông tin về sự phụ thuộc trước–sau vào một con số duy nhất trên mỗi cá thể, nhờ đó mô hình ANOVA thông thường (dành cho các nhóm độc lập) có thể áp dụng trực tiếp trên `Diff` giữa các tổ hợp `Drug × Dosage`, mà không vi phạm giả định độc lập.
+
+Trước khi xây dựng mô hình nhiều nhân tố trên `Diff`, một kiểm định sơ bộ được thực hiện nhằm xác nhận sự tồn tại của thay đổi trung bình giữa `Before` và `After` trên toàn bộ mẫu (gộp cả ba loại thuốc):
+
+```{r paired-t-test}
+kiem_dinh_bat_cap <- t.test(df$Mem_Score_After, df$Mem_Score_Before, paired = TRUE)
+kiem_dinh_bat_cap
+```
+
+Kết quả paired t-test cho t ≈ 3.87 (df = 197), p ≈ 0.00015 — trung bình `Mem_Score_After` cao hơn `Mem_Score_Before` một cách có ý nghĩa thống kê trên toàn mẫu, tức thời gian hoàn thành bài kiểm tra tăng lên (khả năng gợi nhớ suy giảm) sau khi tiếp xúc thuốc, xét chung cả ba loại thuốc. Tuy nhiên kiểm định này gộp chung Alprazolam, Triazolam và Placebo nên chưa cho biết loại thuốc nào thực sự gây ra hiệu ứng, hay hiệu ứng chỉ tập trung ở một loại thuốc/mức liều cụ thể — đây là câu hỏi mà mô hình ANOVA nhiều nhân tố trên `Diff` sẽ giải quyết.
+
+## 3.1 Cơ sở lý thuyết
+
+Phân tích phương sai (ANOVA) trong báo cáo này được xây dựng như một trường hợp riêng của hồi quy tuyến tính bội, theo đó các biến giải thích định tính (`Drug`, `Dosage`, `Happy_Sad_group`) được mã hoá thành các biến chỉ báo (dummy/indicator variables).
+
+Ba công cụ kiểm định được sử dụng:
+
+1.  **t-test cho từng hệ số hồi quy** (mỗi biến giả): $T = \hat\beta_i / se(\hat\beta_i) \sim t_{n-p-1}$
+2.  **F-test tổng thể của mô hình**: $H_0: \beta_1=\cdots=\beta_p=0$, $F = \dfrac{SS_{reg}/p}{RSS/(n-p-1)}$
+3.  **Partial F-test**, dùng để kiểm định đồng thời một khối hệ số — áp dụng khi kiểm định một nhân tố có từ ba mức trở lên, hoặc một số hạng tương tác:
+    $$F=\frac{\big(RSS_{reduced}-RSS_{full}\big)/\big(df_{reduced}-df_{full}\big)}{RSS_{full}/df_{full}}$$
+Một nguyên tắc quan trọng khi áp dụng cho `Drug` và `Dosage` (đều ba mức, mỗi nhân tố cần hai biến giả): kết luận về ảnh hưởng của một nhân tố phải dựa trên partial F-test cho toàn bộ khối biến giả của nhân tố đó, không dựa trên t-test của từng biến giả riêng lẻ. Lý do:
+
+- **Biến giả phụ thuộc vào baseline**: với `Drug` baseline là Placebo, hai biến giả là `DrugAlprazolam` và `DrugTriazolam` (so với Placebo). Nếu đổi baseline sang Alprazolam, hai biến giả sẽ đổi thành `DrugPlacebo` và `DrugTriazolam` (so với Alprazolam).
+- **Hệ quả**: hệ số, sai số chuẩn và p-value của từng t-test sẽ thay đổi hoàn toàn theo lựa chọn baseline, dù dữ liệu gốc không đổi — nên kết luận dựa trên t-test riêng lẻ là không đáng tin cậy, vì phụ thuộc vào một quy ước tuỳ ý.
+- **Partial F-test không có vấn đề này**: kiểm định đồng thời cả khối biến giả ($H_0: \beta^{Drug}_1 = \beta^{Drug}_2 = 0$), nên giá trị F và p-value không đổi dù đổi baseline.
+- Đây là lý do [@james2023, tr. 87] khuyến nghị dùng F-test cho cả khối, thay vì từng t-test riêng lẻ, để kết luận một nhân tố có ý nghĩa hay không.
+
+## 3.2 Mã hoá biến giả
+
+Một nhân tố có $k$ mức được mã hoá bằng $(k-1)$ biến giả, mức còn lại đóng vai trò cơ sở (baseline). Trong mô hình này, `Drug` (ba mức) nhận Placebo làm baseline; `Dosage_f` (ba mức) nhận `Low` làm baseline; `Happy_Sad_group` (hai mức) nhận Happy làm baseline.
+
+```{r ep-kieu-dummy-treatment}
+contrasts(df_model$Dosage_f) <- contr.treatment(3)
+```
+
+```{r mo-hoa-dummy}
+mo_hinh_minh_hoa <- model.matrix(~ Drug * Dosage_f * Happy_Sad_group, data = df_model)
+head(mo_hinh_minh_hoa[, 1:6], 8)
+```
+Ma trận trên minh hoạ cách mã hoá: mỗi quan trắc được biểu diễn bằng một dòng gồm các giá trị nhị phân 0/1 ứng với từng mức của các nhân tố (cột `DrugAlprazolam` nhận giá trị 1 nếu quan trắc thuộc nhóm Alprazolam và 0 trong trường hợp ngược lại), còn các cột tương tác (`DrugAlprazolam:Dosage_fHigh`, …) là tích của các cột biến giả tương ứng.
+
+Phương trình hồi quy đầy đủ tương ứng với mô hình ANOVA ba nhân tố:
+
+$$Diff = \beta_0 + \sum_{i} \beta_i^{Drug} D_i + \sum_{j} \beta_j^{Dosage} S_j + \beta^{HSG} H + \sum_{i,j}\beta_{ij}^{DS}(D_i \times S_j) + \sum_{i}\beta_i^{DH}(D_i\times H) + \sum_j \beta_j^{SH}(S_j \times H) + \sum_{i,j}\beta_{ij}^{DSH}(D_i\times S_j\times H) + \varepsilon$$
+
+Mỗi thành phần trong phương trình trên tương ứng với một khối biến giả cụ thể, được xác định theo cách mã hoá dummy đã nêu ở trên:
+
+- $\beta_0$: trung bình `Diff` của nhóm cơ sở (Placebo, liều Low, nhóm Happy).
+- $\sum_i \beta_i^{Drug} D_i$ ($i=1,2$): hai biến giả `DrugAlprazolam`, `DrugTriazolam` — chênh lệch trung bình `Diff` của từng loại thuốc so với Placebo, khi liều và nhóm cảm xúc ở mức cơ sở.
+- $\sum_j \beta_j^{Dosage} S_j$ ($j=1,2$): hai biến giả `Dosage_fMedium`, `Dosage_fHigh` — chênh lệch trung bình `Diff` của từng mức liều so với Low, khi thuốc và nhóm cảm xúc ở mức cơ sở.
+- $\beta^{HSG} H$: một biến giả `Happy_Sad_groupSad` — chênh lệch trung bình `Diff` giữa nhóm Sad và Happy, khi các yếu tố khác ở mức cơ sở.
+- $\sum_{i,j}\beta_{ij}^{DS}(D_i \times S_j)$ (4 số hạng): tương tác hai chiều `Drug:Dosage_f` — phần điều chỉnh thêm khi một quan trắc đồng thời thuộc một loại thuốc *và* một mức liều cụ thể, vượt ra ngoài mức mà hai hiệu ứng chính cộng lại có thể dự đoán (bao gồm `DrugAlprazolam:Dosage_fHigh`, hệ số sẽ được xác định là nổi bật nhất ở mục 3.3).
+- $\sum_i \beta_i^{DH}(D_i\times H)$ (2 số hạng) và $\sum_j \beta_j^{SH}(S_j \times H)$ (2 số hạng): hai tương tác còn lại bậc hai, `Drug:Happy_Sad_group` và `Dosage_f:Happy_Sad_group`.
+- $\sum_{i,j}\beta_{ij}^{DSH}(D_i\times S_j\times H)$ (4 số hạng): tương tác ba chiều `Drug:Dosage_f:Happy_Sad_group` — phần điều chỉnh thêm khi cả ba yếu tố đồng thời khác mức cơ sở, vượt ra ngoài mức mà hai hiệu ứng chính và ba tương tác hai chiều cộng lại có thể dự đoán.
+- $\varepsilon$: sai số ngẫu nhiên, với giả định $\varepsilon \sim N(0, \sigma^2)$ độc lập giữa các quan trắc.
+
+Tổng cộng mô hình có $1 + 2 + 2 + 1 + 4 + 2 + 2 + 4 = 18$ tham số (kể cả hệ số chặn), khớp với 18 cột của ma trận với 17 bậc tự do của phần hồi quy trong kết quả `summary()` ở mục 3.3 (198 quan trắc − 18 tham số = 180 bậc tự do sai số).
+
+## 3.3 Mô hình hồi quy đầy đủ
+
+```{r mo-hinh-day-du}
+mo_hinh_day_du <- lm(Diff ~ Drug * Dosage_f * Happy_Sad_group, data = df_model)
+summary(mo_hinh_day_du)
+```
+
+F-statistic tổng thể đạt giá trị xấp xỉ 10.56 trên (17, 180) bậc tự do, với p-value: < 2.2e-16, bác bỏ mạnh giả thuyết $H_0: \text{mọi }\beta = 0$. Kết luận ở bước này chỉ dừng ở mức tồn tại ít nhất một biến hoặc một số hạng tương tác có liên hệ với `Diff`, chưa xác định được cụ thể biến hoặc tương tác nào.
+
+Xét t-test của từng hệ số (kiểm định thứ nhất), phần lớn các hệ số trong mô hình bão hoà không có ý nghĩa thống kê (p > 0.05), ngoại trừ hệ số `DrugAlprazolam:Dosage_fHigh` (t ≈ 5.54, p < 0.001), là hệ số duy nhất nổi bật rõ rệt ngay trong mô hình đầy đủ. Với mô hình bão hoà gồm 17 hệ số, việc đánh giá riêng lẻ từng t-test có nguy cơ bỏ sót hoặc diễn giải sai kết quả; các mục tiếp theo do đó áp dụng partial F-test cho từng khối hệ số — theo từng nhân tố và từng số hạng tương tác.
+
+## 3.4 Kiểm định từng nhân tố và tương tác bằng partial F-test
+
+Với mỗi nhân tố và số hạng tương tác, một mô hình rút gọn được xây dựng bằng cách loại bỏ toàn bộ các biến giả thuộc khối đó, rồi so sánh với mô hình đầy đủ hơn bằng hàm `anova()`. 
+
+### 3.4.1 Nhân tố `Drug`
+
+```{r partial-f-drug}
+mo_hinh_khong_drug <- lm(Diff ~ Dosage_f, data = df_model)          # H0: mọi hệ số liên quan đến Drug bằng 0
+mo_hinh_co_drug     <- lm(Diff ~ Drug * Dosage_f, data = df_model)  # giả thuyết đối
+anova(mo_hinh_khong_drug, mo_hinh_co_drug)
+```
+Nhằm kiểm định ảnh hưởng của `Drug` đến `Diff`, mô hình rút gọn `Diff ~ Dosage_f` (Res.Df = 195, RSS = 21564) được so sánh với mô hình đầy đủ hơn `Diff ~ Drug * Dosage_f` (Res.Df = 189, RSS = 12109) bằng partial F-test. Việc bổ sung `Drug` — gồm hiệu ứng chính và tương tác `Drug:Dosage_f`, tương ứng 6 bậc tự do — làm giảm RSS thêm 21564 − 12109 ≈ 9455.
+
+Giá trị F được tính theo đúng công thức partial F-test đã nêu ở mục 3.1:
+
+$$F=\frac{(RSS_{reduced}-RSS_{full})/df_{diff}}{RSS_{full}/df_{full}} = \frac{9455/6}{12109/189} \approx 24.6$$
+
+Giá trị p tương ứng nhỏ hơn 2.2×10⁻¹⁶ (giá trị thực, xấp xỉ 1.9×10⁻²¹). Kết quả này cho thấy nhân tố `Drug` — gồm cả hiệu ứng chính lẫn tương tác với `Dosage` — có ảnh hưởng rất mạnh và có ý nghĩa thống kê cao đến khả năng gợi nhớ, và không thể bị loại khỏi mô hình.
+
+### 3.4.2 Nhân tố `Dosage`
+
+```{r partial-f-dosage}
+mo_hinh_khong_dosage <- lm(Diff ~ Drug, data = df_model)
+anova(mo_hinh_khong_dosage, mo_hinh_co_drug)
+```
+Để kiểm định ảnh hưởng của `Dosage` đến `Diff` sau khi đã kiểm soát `Drug`, mô hình `Diff ~ Drug` (Res.Df = 195, RSS = 18480) được so sánh với mô hình đầy đủ hơn `Diff ~ Drug * Dosage_f` (Res.Df = 189, RSS = 12109). Việc bổ sung `Dosage` cùng tương tác `Drug:Dosage_f` (6 bậc tự do bổ sung) làm giảm RSS thêm 18480 − 12109 ≈ 6371.9.
+
+Giá trị F:
+
+$$F=\frac{(RSS_{reduced}-RSS_{full})/df_{diff}}{RSS_{full}/df_{full}} = \frac{6371.9/6}{12109/189} \approx 16.58$$
+
+với p ≈ 2.5×10⁻¹⁵. Kết quả này cho thấy `Dosage` — cả hiệu ứng chính lẫn phần tương tác với `Drug` — đóng góp thống kê rất mạnh vào việc giải thích biến động của `Diff`, độc lập với sự hiện diện của `Drug` trong mô hình. Kết hợp với kết quả ở mục 3.4.1, cả hai nhân tố `Drug` và `Dosage` đều cần được giữ lại trong mô hình cuối cùng.
+
+### 3.4.3 Tương tác `Drug:Dosage`
+
+Kiểm định sự tồn tại của tương tác `Drug:Dosage` so sánh mô hình cộng tính (chỉ gồm hai hiệu ứng chính) với mô hình có thêm số hạng tương tác: 
+
+```{r partial-f-interaction}
+mo_hinh_cong_tinh <- lm(Diff ~ Drug + Dosage_f, data = df_model)   # H0: không có tương tác
+anova(mo_hinh_cong_tinh, mo_hinh_co_drug)                          # giả thuyết đối: có tương tác
+```
+Mô hình cộng tính `Diff ~ Drug + Dosage_f` (Res.Df = 193, RSS = 17250), ứng với giả thuyết $H_0$ cho rằng ảnh hưởng của `Drug` và `Dosage` lên `Diff` là độc lập, được so sánh với mô hình đầy đủ hơn `Diff ~ Drug * Dosage_f` (Res.Df = 189, RSS = 12109). Bốn bậc tự do bổ sung (ứng với bốn hệ số tương tác `DrugAlprazolam:Dosage_f2`, `DrugAlprazolam:Dosage_f3`, `DrugTriazolam:Dosage_f2`, `DrugTriazolam:Dosage_f3`) làm giảm RSS thêm khoảng 5141.1, cho F ≈ 20.06 và p ≈ 8.7×10⁻¹⁴. 
+
+Kết quả này bác bỏ giả thuyết mô hình cộng tính ("hiệu ứng thuốc" và "hiệu ứng liều lượng" tách rời nhau): ảnh hưởng của hàm lượng thuốc lên `Diff` khác nhau tuỳ loại thuốc đang xét, phù hợp với quan sát trực quan ở Phần 1–2, theo đó chỉ riêng Alprazolam thể hiện quan hệ liều–đáp ứng rõ rệt.
+
+### 3.4.4 Nhân tố `Happy_Sad_group`
+
+```{r partial-f-hsg}
+mo_hinh_day_du_lm <- lm(Diff ~ Drug * Dosage_f * Happy_Sad_group, data = df_model)
+anova(mo_hinh_co_drug, mo_hinh_day_du_lm)   # H0: mọi hệ số liên quan Happy_Sad_group bằng 0
+```
+Mô hình `Diff ~ Drug * Dosage_f` (Res.Df = 189, RSS = 12109) được so sánh với mô hình bão hoà đầy đủ `Diff ~ Drug * Dosage_f * Happy_Sad_group` (Res.Df = 180, RSS = 11410). Chín bậc tự do bổ sung tương ứng với toàn bộ hệ số chứa `Happy_Sad_group` (một hiệu ứng chính, bốn tương tác bậc hai `Drug:HSG`/`Dosage:HSG`, bốn tương tác bậc ba `Drug:Dosage:HSG`); việc bổ sung khối này chỉ làm giảm RSS thêm khoảng 699.1 — một mức giảm rất nhỏ so với RSS còn lại (12109) — cho F ≈ 1.23 và p ≈ 0.282, không có ý nghĩa thống kê ở mức α = 0.05 (Giá trị p này chỉ có ý nghĩa thống kê nếu chọn mức **α ≥ 0.282** — Tức là nếu ngưỡng chấp nhận sai lầm loại I là 28.2% trở lên - Là bằng chứng khá yếu cho ảnh hưởng của `Happy_Sad_group`).
+
+Kết quả cho thấy loại ký ức được gợi trước khi kiểm tra (vui hay buồn), dù xét riêng hay kết hợp với `Drug`/`Dosage`, không đóng góp thêm khả năng giải thích đáng kể nào cho `Diff` so với mô hình chỉ gồm `Drug` và `Dosage`.
+
+```{r bang-partial-f-tong-hop, echo=FALSE}
+bang_partial_f <- data.frame(
+  Kiem_dinh = c("Drug (cả khối, gồm tương tác)", "Dosage (cả khối, gồm tương tác)",
+                "Tương tác Drug:Dosage", "Happy_Sad_group (cả khối, gồm tương tác)"),
+  Df1 = c(6, 6, 4, 9),
+  F_value = c(24.60, 16.58, 20.06, 1.23),
+  p_value = c("1.88e-21", "2.53e-15", "8.74e-14", "0.282")
+)
+kable(bang_partial_f, col.names = c("Kiểm định (partial F-test)", "df tử số", "F", "p-value"),
+      caption = "Tóm tắt bốn partial F-test") |>
+  kable_styling(bootstrap_options = c("striped", "bordered", "condensed"),
+                latex_options = c("striped", "hold_position"),
+                full_width = FALSE)
+```
+Kết quả tổng hợp ở Bảng trên cho thấy `Drug` (F(6,189) ≈ 24.6, p ≈ 1.9×10⁻²¹) và `Dosage` (F(6,189) ≈ 16.6, p ≈ 2.5×10⁻¹⁵) đều có ảnh hưởng rất mạnh đến `Diff`. Mỗi kiểm định này gộp chung cả hiệu ứng chính lẫn mọi tương tác có chứa nhân tố đó, dùng F-test cho cả khối thay vì từng t-test riêng lẻ. Tương tác `Drug:Dosage`, khi được kiểm định riêng theo mẫu cũng có ý nghĩa rất mạnh (F(4,189) ≈ 20.1, p ≈ 8.7×10⁻¹⁴). Ngược lại, `Happy_Sad_group` — kiểm định gộp toàn bộ 9 hệ số liên quan (1 hiệu ứng chính + 8 số hạng tương tác các bậc) trong cùng một phép so sánh giữa `Diff ~ Drug * Dosage_f` và `Diff ~ Drug * Dosage_f * Happy_Sad_group` — không có ý nghĩa thống kê (F(9,180) ≈ 1.23, p ≈ 0.282).
+```{r chart-partial-f, echo=FALSE, fig.width=9, fig.height=3.8}
+bang_partial_f <- bang_partial_f |>
+  mutate(Y_nghia = ifelse(as.numeric(p_value) < 0.05,
+                           "Có ý nghĩa (p < 0.05)", "Không có ý nghĩa"))
+
+ggplot(bang_partial_f, aes(x = reorder(Kiem_dinh, F_value), y = F_value, fill = Y_nghia)) +
+  geom_col(width = 0.6) +
+  coord_flip() +
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 22)) +
+  scale_fill_manual(values = c("Có ý nghĩa (p < 0.05)" = "#2c7fb8",
+                                "Không có ý nghĩa" = "grey70")) +
+  labs(title = "Giá trị F của bốn partial F-test",
+       x = NULL, y = "Giá trị thống kê F", fill = NULL) +
+  theme(plot.title = element_text(size = 11),
+        legend.position = "bottom")
+```
+Biểu đồ trên trực quan hoá lại Bảng tóm tắt: `Drug`, `Dosage` và tương tác `Drug:Dosage` có giá trị F vượt trội và đều có ý nghĩa thống kê, trong khi `Happy_Sad_group` có giá trị F gần 1 — mức tương ứng với việc mô hình không giải thích thêm được biến động nào đáng kể ngoài sai số ngẫu nhiên.
+
+## 3.5 Rút gọn mô hình bằng partial F-test tuần tự
+
+Quy trình rút gọn mô hình được thực hiện theo trình tự so sánh các mô hình lồng nhau bằng hàm `anova()` minh hoạ ở @james2023 [tr. 314], áp dụng nguyên tắc lựa chọn giữa mô hình đầy đủ và mô hình rút gọn ở @sheather2009 [tr. 146]. Các số hạng không có ý nghĩa thống kê được loại bỏ dần theo nguyên tắc thứ bậc, trong đó số hạng bậc cao nhất được kiểm định và loại bỏ trước:
+
+```{r rut-gon-tung-buoc}
+mo_hinh_giu_hsg   <- lm(Diff ~ Drug * Dosage_f + Happy_Sad_group, data = df_model)
+mo_hinh_cuoi_cung <- lm(Diff ~ Drug * Dosage_f, data = df_model)
+
+# Bước 1: Loại tương tác bậc ba và các tương tác bậc hai chứa Happy_Sad_group,
+# giữ lại hiệu ứng chính của Happy_Sad_group
+anova(mo_hinh_giu_hsg, mo_hinh_day_du_lm)
+
+# Bước 2: Loại hiệu ứng chính của Happy_Sad_group
+anova(mo_hinh_cuoi_cung, mo_hinh_giu_hsg)
+```
+Kết quả của bước 2 được kiểm chứng bằng cách tính trực tiếp theo công thức ở @sheather2009 [tr. 137]:
+
+```{r tinh-tay-partial-f}
+RSS_reduced <- sum(residuals(mo_hinh_cuoi_cung)^2)
+RSS_full    <- sum(residuals(mo_hinh_giu_hsg)^2)
+df_reduced  <- df.residual(mo_hinh_cuoi_cung)
+df_full     <- df.residual(mo_hinh_giu_hsg)
+
+F_tinh_tay <- ((RSS_reduced - RSS_full) / (df_reduced - df_full)) / (RSS_full / df_full)
+c(RSS_reduced = RSS_reduced, RSS_full = RSS_full, F_tinh_tay = F_tinh_tay,
+  p_value = pf(F_tinh_tay, df_reduced - df_full, df_full, lower.tail = FALSE))
+```
+Kết quả tính trực tiếp (F ≈ 0.137, p ≈ 0.71) trùng khớp với kết quả trả về từ hàm `anova()`, xác nhận công thức $(RSS_{reduced}-RSS_{full})/(df_{reduced}-df_{full})$ chia cho $RSS_{full}/df_{full}$, trình bày ở [@sheather2009, tr. 137; @james2023, công thức 3.24], đã được áp dụng đúng.
+
+Cả hai partial F-test đều không có ý nghĩa thống kê (bước 1: F(8,180) ≈ 1.36, p ≈ 0.216; bước 2: F(1,188) ≈ 0.14, p ≈ 0.71), dẫn đến việc loại bỏ toàn bộ số hạng liên quan đến `Happy_Sad_group`. Mô hình cuối cùng được xác định là:
+
+$$Diff = \beta_0 + \beta_1^{Drug}D_1 + \beta_2^{Drug}D_2 + \beta_1^{Dosage}S_1 + \beta_2^{Dosage}S_2 + \sum \beta_{ij}(D_i\times S_j) + \varepsilon$$
+
+tương ứng với công thức `Diff ~ Drug * Dosage_f` trong R — một mô hình ANOVA hai nhân tố có tương tác. Từ kết quả này có thể kết luận rằng loại ký ức được gợi trước bài kiểm tra (vui hoặc buồn) không có ảnh hưởng có ý nghĩa thống kê đến khả năng gợi nhớ trong bộ dữ liệu này.
+
+Trong bốn số hạng tương tác có thể có ở mô hình ban đầu (`Drug:Dosage`, `Drug:Happy_Sad_group`, `Dosage:Happy_Sad_group`, và tương tác ba chiều `Drug:Dosage:Happy_Sad_group`), chỉ `Drug:Dosage` được giữ lại trong mô hình cuối cùng, vì:
+ 
+- **Khối liên quan đến `Happy_Sad_group`** (hiệu ứng chính cùng cả ba tương tác chứa nó, tổng 9 bậc tự do) không có ý nghĩa thống kê khi kiểm định gộp — F(9,180) ≈ 1.23, p ≈ 0.282.
+- **Ba tương tác chứa `Happy_Sad_group`** (`Drug:Dosage:HSG` 4 df, `Drug:HSG` 2 df, `Dosage:HSG` 2 df) được loại cùng lúc thành một khối 8 df ở Bước 1 của mục 3.5 — F(8,180) ≈ 1.36, p ≈ 0.216, cũng không có ý nghĩa. Việc gộp chung ba số hạng này (thay vì kiểm định riêng lẻ) tuân theo nguyên tắc thứ bậc: không kiểm định một tương tác bậc thấp khi tương tác bậc cao hơn chứa nó — ở đây là tương tác ba chiều — vẫn còn trong mô hình.
+- **`Drug:Dosage`**, ngược lại, được kiểm định riêng và độc lập với `Happy_Sad_group` (so sánh mô hình cộng tính `Drug + Dosage` với mô hình có tương tác `Drug * Dosage`), cho kết quả có ý nghĩa rất mạnh: F(4,189) ≈ 20.06, p ≈ 8.7×10⁻¹⁴ — nên là tương tác duy nhất trong bốn số hạng ban đầu được giữ lại.
+
+## 3.6 Mô hình cuối cùng
+
+```{r mo-hinh-cuoi-summary}
+summary(mo_hinh_cuoi_cung)
+```
+
+```{r bang-he-so-kable, echo=FALSE}
+he_so <- summary(mo_hinh_cuoi_cung)$coefficients |>
+  as.data.frame() |>
+  rownames_to_column("He_so") |>
+  mutate(`Pr(>|t|)` = formatC(`Pr(>|t|)`, format = "e", digits = 2))
+kable(he_so, digits = 3,
+      col.names = c("Hệ số", "Ước lượng", "Sai số chuẩn", "t", "p-value"),
+      caption = "Hệ số hồi quy của mô hình cuối cùng") |>
+  kable_styling(bootstrap_options = c("striped", "bordered", "condensed"),
+                latex_options = c("striped", "hold_position"),
+                full_width = FALSE)
+```
+
+```{r anova-mo-hinh-cuoi}
+anova(mo_hinh_cuoi_cung)
+```
+
+Kết quả cho thấy F tổng thể của mô hình cuối cùng đạt giá trị xấp xỉ 20.83 trên (8, 189) bậc tự do, với p ≈ 1.8×10⁻²², cho thấy mô hình có ý nghĩa thống kê rất mạnh. Hệ số xác định R² đạt xấp xỉ 0.469 (R² hiệu chỉnh ≈ 0.446 ($R^2 = SS_{reg}/SST = 1 - RSS/SST$)
+
+Bảng `anova()` áp dụng cơ chế partial F-test tuần tự, `Drug` được kiểm định trước (F ≈ 33.6, p ≈ 3.3×10⁻¹³), `Dosage_f` được kiểm định phần đóng góp thêm (F ≈ 9.6, p ≈ 1.1×10⁻⁴), và `Drug:Dosage_f` được kiểm định phần đóng góp thêm cuối cùng (F ≈ 20.1, p ≈ 8.7×10⁻¹⁴) — mỗi dòng trong bảng tương ứng với một partial F-test so với mô hình chỉ gồm các số hạng phía trên nó.
+
+Trong bảng hệ số, `DrugAlprazolam:Dosage_fHigh` là hệ số đáng chú ý nhất, với giá trị ước lượng +26.87 (t ≈ 7.92, p < 0.001). Hệ số này đo lường phần chênh lệch tăng thêm của `Diff` khi một quan trắc vừa thuộc nhóm Alprazolam vừa thuộc mức liều Cao, so với mức mà mô hình cộng tính (chỉ gồm hai hiệu ứng chính) sẽ dự đoán.
+
+```{r bieu-do-he-so, echo=FALSE, fig.width=9, fig.height=4.2}
+he_so_ci <- summary(mo_hinh_cuoi_cung)$coefficients |>
+  as.data.frame() |>
+  rownames_to_column("He_so") |>
+  bind_cols(as.data.frame(confint(mo_hinh_cuoi_cung)) |> setNames(c("CI_low", "CI_high"))) |>
+  filter(He_so != "(Intercept)")
+
+ggplot(he_so_ci, aes(x = reorder(He_so, Estimate), y = Estimate)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
+  geom_pointrange(aes(ymin = CI_low, ymax = CI_high)) +
+  coord_flip() +
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 22)) +
+  labs(title = "Hệ số hồi quy của mô hình cuối cùng (± khoảng tin cậy 95%)",
+       x = NULL, y = "Ước lượng hệ số (giây)") +
+  theme(plot.title = element_text(size = 11))
+```
+Biểu đồ trên trình bày lại Bảng hệ số ở dạng đồ hoạ: khoảng tin cậy 95% của `DrugAlprazolam:Dosage_fHigh` nằm hẳn về phía dương và cách xa 0, phù hợp với kết quả t-test đã nêu; phần lớn các hệ số còn lại có khoảng tin cậy phủ qua giá trị 0, tức không có bằng chứng đủ mạnh về ảnh hưởng riêng lẻ của các số hạng đó.
+
+```{r bang-trung-binh-o}
+bang_trung_binh_o <- df_model |>
+  group_by(Drug, Dosage_f) |>
+  summarise(n = n(), Diff_tb = mean(Diff), Diff_sd = sd(Diff), .groups = "drop")
+ 
+kable(bang_trung_binh_o, digits = 2,
+      col.names = c("Drug", "Dosage", "n", "Diff trung bình", "SD"),
+      caption = "Trung bình Diff theo từng ô Drug x Dosage") |>
+  kable_styling(bootstrap_options = c("striped", "bordered", "condensed"),
+                latex_options = c("striped", "hold_position"),
+                full_width = FALSE)
+ 
+ggplot(bang_trung_binh_o, aes(x = Dosage_f, y = Diff_tb, fill = Drug)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  geom_errorbar(aes(ymin = Diff_tb - Diff_sd, ymax = Diff_tb + Diff_sd),
+                position = position_dodge(width = 0.8), width = 0.2) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(title = "Diff trung bình (± 1 SD) theo Drug x Dosage",
+       x = "Dosage", y = "Diff trung bình (giây)")
+```
+
+```{r bieu-do-tuong-tac-duong, echo=FALSE}
+ggplot(bang_trung_binh_o, aes(x = Dosage_f, y = Diff_tb, color = Drug, group = Drug)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
+  labs(title = "Biểu đồ tương tác: Diff trung bình theo Dosage, phân theo Drug",
+       x = "Dosage", y = "Diff trung bình (giây)", color = "Drug")
+```
+Bảng và hai biểu đồ trên minh hoạ rõ bản chất của tương tác đã phát hiện được: ở hai mức liều Thấp và Trung bình, ba loại thuốc cho kết quả `Diff` xấp xỉ nhau; ở mức liều Cao, riêng Alprazolam tách hẳn khỏi hai loại thuốc còn lại với `Diff` trung bình tăng vọt. Trong biểu đồ đường, ba đường ứng với ba loại thuốc không song song với nhau — đây chính là dấu hiệu trực quan của một tương tác có ý nghĩa: hiệu ứng của hàm lượng phụ thuộc vào loại thuốc đang xét, cụ thể:
+
+- **Alprazolam**: tăng liều làm `Diff` tăng rất mạnh (0.3 → 5.9 → 22.6), tức khả năng gợi nhớ suy giảm mạnh dần theo hàm lượng — một quan hệ liều–đáp ứng (dose-response) rõ rệt.
+- **Placebo**: `Diff` gần như không đổi, thậm chí hơi giảm khi tăng liều (2.4 → -0.8 → -2.1).
+- **Triazolam**: `Diff` dao động nhẹ quanh 0 qua các mức liều (-1.2 → 1.2 → -1.7), không thể hiện xu hướng rõ ràng.
+
+Nếu chỉ xét riêng hiệu ứng chính của `Drug` hoặc của `Dosage` mà bỏ qua số hạng tương tác, kết luận rút ra sẽ không phản ánh đúng bản chất dữ liệu; kết luận sẽ là "Alprazolam có quan hệ liều–đáp ứng rất mạnh, còn Placebo và Triazolam thì không rõ ràng". 
