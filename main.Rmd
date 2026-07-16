@@ -130,7 +130,7 @@ Vũ Hà Thư          & 25C23004 & \textit{[Điền nhiệm vụ]} & 100\% \\
 
 \newpage
 
-# Yêu cầu mở rộng (khuyến khích, không bắt buộc)
+# Xây dựng mô hình ANOVA nhiều nhân tố với dữ liệu lặp (Repeated Measures / Mixed ANOVA)
 
 ```{r child="parts/Yeucauphu_1.Rmd"}
 ```
