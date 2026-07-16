@@ -1,1 +1,2 @@
+#kiểm định hiệu ứng chính & tương tác với Time
 
