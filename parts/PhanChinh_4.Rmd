@@ -1,1 +1,238 @@
+# Kiểm tra các giả định của mô hình & nhận xét
+
+Từ quy trình rút gọn mô hình ở Phần 3, toàn bộ các số hạng liên quan đến `Happy_Sad_group` đã được loại bỏ do không có ý nghĩa thống kê. Vì vậy, mô hình được sử dụng để kiểm tra giả định là mô hình ANOVA hai nhân tố có tương tác:
+
+$$\text{Diff}_{ijk}
+=
+\mu+\alpha_i+\beta_j+(\alpha\beta)_{ij}+\varepsilon_{ijk},$$
+
+trong đó $\alpha_i$ là hiệu ứng của loại thuốc `Drug`, $\beta_j$ là hiệu ứng của mức liều `Dosage_f`, $(\alpha\beta)_{ij}$ là tương tác giữa loại thuốc và liều lượng, và
+
+$$\varepsilon_{ijk}\overset{iid}{\sim}N(0,\sigma^2).$$
+
+Trong R, mô hình tương ứng là:
+
+```{r}
+# Mô hình này đã được xây dựng ở Phần 3
+formula(mo_hinh_cuoi_cung)
+```
+
+Mô hình cuối cùng có ý nghĩa thống kê, $F(8,189)\approx20.83$, $p\approx1.81\times10^{-22}$, với $R^2\approx0.469$ và $R^2$ hiệu chỉnh xấp xỉ $0.446$. Kết quả ở Phần 3 cũng cho thấy tương tác `Drug:Dosage_f` có ý nghĩa thống kê, do đó tác động của liều lượng phải được diễn giải riêng theo từng loại thuốc.
+
+## Chuẩn bị dữ liệu kiểm tra giả định
+
+```{r chuan-bi-du-lieu}
+du_lieu_kiem_tra  <- df_model |>
+  dplyr::mutate(
+    row_id = dplyr::row_number(),
+    fitted_value = fitted(mo_hinh_cuoi_cung),
+    residual = residuals(mo_hinh_cuoi_cung),
+    std_residual = rstandard(mo_hinh_cuoi_cung),
+    studentized_residual = rstudent(mo_hinh_cuoi_cung),
+    leverage = hatvalues(mo_hinh_cuoi_cung),
+    cooks_distance = cooks.distance(mo_hinh_cuoi_cung)
+  )
+```
+
+## Giả định độc lập
+
+Mỗi người tham gia được đo hai lần, trước và sau khi thử nghiệm. Hai phép đo trên cùng một người không độc lập, nhưng bài làm sử dụng một giá trị `Diff = Mem_Score_After - Mem_Score_Before` cho mỗi cá thể. Do đó, sau khi chuyển sang `Diff`, mỗi người chỉ đóng góp một quan trắc cho mô hình.
+
+Giả định độc lập được xem là hợp lý nếu những người tham gia khác nhau được phân vào các nhóm điều trị độc lập và kết quả của người này không ảnh hưởng đến người khác. Đây chủ yếu là giả định dựa trên thiết kế thu thập dữ liệu, không thể được xác nhận hoàn toàn chỉ bằng một kiểm định trên phần dư.
+
+Không sử dụng kiểm định Durbin--Watson để kết luận về giả định này vì thứ tự các dòng trong bộ dữ liệu không phải thứ tự thời gian; dữ liệu đang được sắp xếp chủ yếu theo nhóm thuốc và liều lượng.
+
+## Giả định phần dư có phân phối chuẩn
+
+Giả thuyết kiểm định Shapiro--Wilk:
+
+$$H_0:\text{ phần dư có phân phối chuẩn},\qquad
+H_1:\text{ phần dư không có phân phối chuẩn}.$$
+
+```{r shapiro-phan-du}
+shapiro_kq <- shapiro.test(residuals(mo_hinh_cuoi_cung))
+shapiro_kq
+```
+
+Kết quả cho \(W\approx0.9558\) và
+\(p\approx7.82\times10^{-6}<0.05\). Vì vậy, ở mức ý nghĩa 5%, bác bỏ
+giả thuyết phần dư có phân phối chuẩn. Kết quả này cho thấy giả định
+chuẩn của phần dư bị vi phạm. Tuy nhiên, cần kết hợp với biểu đồ Q--Q để
+đánh giá mức độ và nguyên nhân của sự sai lệch.
+
+Xét chart Q--Q và phần dư theo giá trị dự đoán:
+
+```{r bieu-do-phan-du, fig.width=10, fig.height=4, message=FALSE}
+p_resid <- ggplot(du_lieu_kiem_tra , aes(x = fitted_value, y = residual)) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  geom_point(alpha = 0.75) +
+  geom_smooth(method = "loess", se = FALSE) +
+  labs(
+    title = "Phần dư theo giá trị dự đoán",
+    x = "Giá trị dự đoán",
+    y = "Phần dư"
+  )
+
+p_qq <- ggplot(du_lieu_kiem_tra , aes(sample = residual)) +
+  stat_qq() +
+  stat_qq_line() +
+  labs(
+    title = "Biểu đồ Q-Q của phần dư",
+    x = "Phân vị lý thuyết",
+    y = "Phân vị phần dư"
+  )
+
+gridExtra::grid.arrange(p_resid, p_qq, ncol = 2)
+```
+
+Ở biểu đồ phần dư theo giá trị dự đoán, các điểm nhìn chung phân bố quanh đường \(0\) và đường làm trơn gần như nằm ngang. Vì vậy, chưa thấy xu hướng cong hoặc dạng biến động có hệ thống rõ rệt trong phần dư. Các điểm tạo thành nhiều dải thẳng đứng do mô hình chỉ gồm các biến phân loại `Drug` và `Dosage_f`; mỗi tổ hợp thuốc--liều lượng có cùng một giá trị dự đoán.
+
+Tuy nhiên, vẫn xuất hiện một số quan trắc có phần dư khá lớn, nổi bật là một điểm gần \(-40\) và một số điểm lớn hơn \(20\). Trên biểu đồ Q--Q, phần lớn các điểm ở vùng trung tâm nằm tương đối gần đường thẳng lý thuyết, nhưng hai phần đuôi lệch rõ khỏi đường này, đặc biệt ở đuôi trái. Điều đó cho thấy phần dư không hoàn toàn tuân theo phân phối chuẩn, chủ yếu do một số giá trị cực trị và hiện tượng đuôi dày.
+
+Nhìn chung, biểu đồ phần dư chưa cho thấy dấu hiệu rõ ràng về việc mô hình bỏ sót một cấu trúc trung bình quan trọng. Tuy nhiên, giả định chuẩn của phần dư chưa được thỏa mãn và cần được xem xét thêm thông qua kiểm định Shapiro--Wilk, Cook's distance và phân tích độ nhạy.
+
+## Giả định đồng nhất phương sai
+
+Đối với mô hình cuối cùng, phương sai cần được so sánh giữa chín tổ hợp `Drug × Dosage_f`, không phải giữa 18 tổ hợp của mô hình ba nhân tố ban đầu.
+
+Giả thuyết của kiểm định Levene:
+
+$$H_0:\sigma_1^2=\sigma_2^2=\cdots=\sigma_9^2,\qquad
+H_1:\text{ tồn tại ít nhất hai nhóm có phương sai khác nhau}.$$
+
+```{r levene-test}
+df_kiem_dinh <- df_model |>
+  mutate(
+    Nhom_Drug_Dosage = interaction(Drug, Dosage_f, drop = TRUE)
+  )
+
+levene_kq <- car::leveneTest(
+  Diff ~ Nhom_Drug_Dosage,
+  data = df_kiem_dinh,
+  center = median
+)
+
+levene_kq
+```
+
+**Nhận xét:** Kiểm định Levene cho $F(8,189)=0.9961$ và $p=0.4405>0.05$. Vì vậy, ở mức ý nghĩa $\alpha=0.05$, chưa có đủ bằng chứng để bác bỏ giả thuyết phương sai của chín nhóm `Drug × Dosage_f` bằng nhau. Do đó, giả định đồng nhất phương sai của mô hình được xem là thỏa mãn.
+
+Xét về mặt mô tả từ bảng độ lệch chuẩn theo từng tổ hợp, nhóm Alprazolam
+liều cao có độ phân tán lớn hơn một số nhóm khác. Tuy nhiên, kiểm định
+Levene đánh giá đồng thời phương sai của cả chín nhóm và cho
+\(p=0.4405>0.05\). Vì vậy, sự khác biệt quan sát được trong mẫu chưa đủ
+lớn để kết luận phương sai các nhóm khác nhau trong tổng thể.
+
+Trong trường hợp này, kiểm định Levene với tâm là trung vị được ưu tiên hơn kiểm định Bartlett vì Levene ít nhạy hơn trước các giá trị ngoại lệ và sự sai lệch khỏi phân phối chuẩn. Lựa chọn này phù hợp với kết quả kiểm định Shapiro--Wilk và biểu đồ Q--Q, cho thấy phần dư chưa hoàn toàn tuân theo phân phối chuẩn.
+
+## Kiểm tra quan trắc ngoại lệ và mức độ ảnh hưởng
+
+```{r bang-quan-trac-anh-huong}
+nguong_cook <- 4 / nrow(df_model)
+
+bang_anh_huong <- du_lieu_kiem_tra  |>
+  arrange(desc(cooks_distance)) |>
+  slice_head(n = 6) |>
+  select(
+    row_id, Drug, Dosage_f, Happy_Sad_group, Diff,
+    studentized_residual, leverage, cooks_distance
+  )
+
+kable(
+  bang_anh_huong,
+  digits = 3,
+  col.names = c(
+    "Dòng", "Drug", "Dosage", "Nhóm ký ức", "Diff",
+    "Phần dư studentized", "Leverage", "Cook's distance"
+  ),
+  caption = "Các quan trắc có Cook's distance lớn nhất"
+) |>
+  kable_styling(
+    bootstrap_options = c("striped", "bordered", "condensed"),
+    latex_options = c("striped", "hold_position"),
+    full_width = FALSE
+  )
+
+nguong_cook
+sum(abs(du_lieu_kiem_tra $studentized_residual) > 3)
+sum(du_lieu_kiem_tra $cooks_distance > nguong_cook)
+```
+
+Có hai quan trắc có trị tuyệt đối phần dư studentized lớn hơn 3:
+
+- dòng 110, nhóm Placebo -- liều Trung bình, `Diff = -40.4`;
+- dòng 49, nhóm Alprazolam -- liều Cao, `Diff = 49.0`.
+
+**Nhận xét:** Phần lớn các quan trắc có Cook's distance thấp hơn ngưỡng
+sàng lọc \(4/n\approx0.0202\). Một số quan trắc vượt ngưỡng này, trong
+đó dòng 110 có Cook's distance lớn nhất, khoảng \(0.136\). Điều này cho
+thấy dòng 110 cần được chú ý khi đánh giá mức độ ổn định của mô hình.
+
+Tuy nhiên, \(4/n\) chỉ là ngưỡng sàng lọc kinh nghiệm, không phải tiêu
+chuẩn để tự động loại quan trắc. Vì vậy, mức độ ảnh hưởng của các điểm
+này được đánh giá thêm thông qua phân tích độ nhạy.
+
+```{r bieu-do-cooks-distance, fig.height=4}
+ggplot(du_lieu_kiem_tra , aes(x = row_id, y = cooks_distance)) +
+  geom_hline(yintercept = nguong_cook, linetype = "dashed") +
+  geom_segment(aes(xend = row_id, y = 0, yend = cooks_distance)) +
+  labs(
+    title = "Cook's distance của các quan trắc",
+    subtitle = paste0("Đường đứt nét: 4/n = ", round(nguong_cook, 4)),
+    x = "Số thứ tự quan trắc",
+    y = "Cook's distance"
+  )
+```
+
+## Phân tích độ nhạy
+Để đánh giá liệu kết luận có phụ thuộc hoàn toàn vào hai quan trắc cực trị hay
+không, thực hiện thêm một phân tích độ nhạy bằng cách tạm thời loại các quan
+trắc có \(|r_i^*|>3\). Việc loại này chỉ dùng để kiểm tra độ ổn định của kết
+quả, không thay thế mô hình chính.
+
+```{r phan-tich-do-nhay}
+id_cuc_tri <- which(abs(rstudent(mo_hinh_cuoi_cung)) > 3)
+
+mo_hinh_do_nhay <- lm(
+  Diff ~ Drug * Dosage_f,
+  data = df_model[-id_cuc_tri, ]
+)
+
+anova(mo_hinh_do_nhay)
+summary(mo_hinh_do_nhay)
+shapiro.test(residuals(mo_hinh_do_nhay))
+```
+**Nhận xét:** Sau khi tạm thời loại hai quan trắc có trị tuyệt đối phần dư
+studentized lớn hơn 3, các kết luận chính của mô hình không thay đổi. Nhân tố
+`Drug`, `Dosage_f` và tương tác `Drug:Dosage_f` vẫn có ý nghĩa thống kê, với
+p-value lần lượt là \(2.64\times10^{-13}\), \(0.000173\) và
+\(7.15\times10^{-15}\). Đặc biệt, tương tác giữa Alprazolam và liều cao vẫn
+có hệ số lớn và có ý nghĩa rất mạnh, cho thấy quan hệ liều--đáp ứng được phát
+hiện không chỉ phụ thuộc vào các quan trắc cực trị.
+
+Kiểm định Shapiro--Wilk của mô hình sau phân tích độ nhạy cho
+\(W=0.9858\) và \(p=0.0463\). So với mô hình ban đầu, giá trị \(W\)
+gần 1 hơn và p-value tăng đáng kể, cho thấy phân phối phần dư đã gần
+chuẩn hơn. Tuy nhiên, do \(p<0.05\), giả định chuẩn vẫn chưa được thỏa
+mãn hoàn toàn ở mức ý nghĩa 5%.
+
+Do mô hình độ nhạy được ước lượng trên tập dữ liệu đã loại hai quan trắc,
+không sử dụng sự thay đổi của \(R^2\) để so sánh trực tiếp với mô hình
+ban đầu. Kết quả quan trọng là các hiệu ứng thống kê và hướng kết luận
+của mô hình vẫn được duy trì.
+
+## Đánh giá tổng hợp về độ phù hợp của mô hình
+
+Kết quả  cho thấy **giả định độc lập giữa các quan trắc được xem là hợp lý**, vì sau khi chuyển hai phép đo trước và sau thành biến `Diff`, mỗi người tham gia chỉ đóng góp một giá trị vào mô hình. Bên cạnh đó, kiểm định Levene cho \(p=0.4405>0.05\), nên **chưa có bằng chứng cho thấy phương sai giữa chín tổ hợp `Drug × Dosage_f` khác nhau**. Vì vậy, giả định đồng nhất phương sai được xem là thỏa mãn.
+
+Biểu đồ phần dư theo giá trị dự đoán cho thấy các điểm nhìn chung phân bố quanh đường 0 và không xuất hiện xu hướng cong hay dạng phân tán có hệ thống rõ rệt. Kết quả này cho thấy mô hình chưa có dấu hiệu bỏ sót một cấu trúc rõ ràng trong mối quan hệ giữa `Diff`, loại thuốc và liều lượng.
+
+Tuy nhiên, **giả định phân phối chuẩn của phần dư chưa được thỏa mãn hoàn toàn**. Kiểm định Shapiro--Wilk cho \(p<0.05\), đồng thời biểu đồ Q--Q cho thấy một số điểm lệch khỏi đường thẳng lý thuyết ở hai phần đuôi. Quan sát trực quan cho thấy phần lớn phần dư ở vùng trung tâm vẫn khá gần đường thẳng, nên sự sai lệch chủ yếu đến từ một số quan trắc có giá trị cực trị, thay vì toàn bộ phân phối phần dư bị lệch nghiêm trọng.
+
+Kết quả Cook's distance cũng phát hiện một số quan trắc vượt ngưỡng tham khảo \(4/n\), trong đó dòng 110 có mức ảnh hưởng lớn nhất. Tuy nhiên, **không có giá trị Cook's distance nào gần 1**, nên chưa có dấu hiệu cho thấy một quan trắc riêng lẻ chi phối toàn bộ kết quả mô hình.
+
+Để kiểm tra thêm, thực hiện phân tích độ nhạy bằng cách tạm thời loại hai quan trắc có trị tuyệt đối phần dư studentized lớn hơn 3. Sau khi ước lượng lại, **`Drug`, `Dosage_f` và tương tác `Drug:Dosage_f` vẫn có ý nghĩa thống kê**. Đặc biệt, hiệu ứng tương tác giữa Alprazolam và liều cao vẫn rất rõ, cho thấy kết luận về quan hệ liều--đáp ứng của Alprazolam không chỉ xuất phát từ một vài giá trị cực trị.
+
+Nhìn chung, mặc dù phần dư chưa hoàn toàn tuân theo phân phối chuẩn, **kết luận chính của mô hình vẫn tương đối ổn định**. Với dữ liệu giữa các nhóm khá cân bằng và giả định đồng nhất phương sai được thỏa mãn, mô hình ANOVA hai nhân tố có tương tác vẫn phù hợp để phân tích ảnh hưởng của loại thuốc và liều lượng đến mức thay đổi khả năng gợi nhớ. Tuy nhiên, khi diễn giải kết quả, cần ghi nhận hạn chế liên quan đến một số quan trắc cực trị và sự sai lệch chuẩn ở hai phần đuôi..
+
 
