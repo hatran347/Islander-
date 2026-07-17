@@ -1,2 +1,167 @@
-#kiểm định hiệu ứng chính & tương tác với Time
+## Kiểm định các hiệu ứng liên quan đến Time
 
+Các hiệu ứng liên quan đến `Time` được kiểm định trong tầng sai số
+`Subject:Time`. Trong đó, hiệu ứng chính của `Time` cho biết điểm ghi nhớ có
+thay đổi giữa Before và After hay không; các tương tác có chứa `Time` cho biết
+mức thay đổi trước--sau có khác nhau giữa các nhóm hay không.
+
+### Kết quả kiểm định
+
+```{r bang-kiem-dinh-time}
+tom_tat_rm <- summary(model_rm_full)
+
+ten_tang_time <- grep(
+  "Subject:Time",
+  names(tom_tat_rm),
+  value = TRUE
+)
+
+bang_time_raw <- tom_tat_rm[[ten_tang_time]][[1]]
+df_sai_so_time <- bang_time_raw["Residuals", "Df"]
+
+bang_time <- bang_time_raw |>
+  as.data.frame() |>
+  tibble::rownames_to_column("Hieu_ung") |>
+  mutate(
+    Hieu_ung = stringr::str_trim(Hieu_ung)
+  ) |>
+  filter(
+    Hieu_ung != "Residuals",
+    stringr::str_detect(Hieu_ung, "Time")
+  ) |>
+  transmute(
+    Hieu_ung,
+    Df = paste0(
+      as.integer(Df),
+      ", ",
+      as.integer(df_sai_so_time)
+    ),
+    F_value = round(`F value`, 3),
+    p_value = format.pval(
+      `Pr(>F)`,
+      digits = 4,
+      eps = 0.0001
+    ),
+    Ket_luan = if_else(
+      `Pr(>F)` < 0.05,
+      "Có ý nghĩa",
+      "Không có ý nghĩa"
+    )
+  )
+
+kable(
+  bang_time,
+  col.names = c(
+    "Hiệu ứng",
+    "Df (tử, mẫu)",
+    "F",
+    "p-value",
+    "Kết luận"
+  ),
+  caption = paste(
+    "Kiểm định hiệu ứng chính của Time",
+    "và các tương tác có chứa Time"
+  ),
+  align = c("l", "c", "c", "c", "c")
+) |>
+  kable_styling(
+    bootstrap_options = c(
+      "striped",
+      "bordered",
+      "condensed"
+    ),
+    latex_options = c(
+      "striped",
+      "hold_position"
+    ),
+    full_width = FALSE
+  )
+```
+
+### Trực quan hóa sự thay đổi theo Time
+
+```{r bieu-do-tuong-tac-time, fig.width=10, fig.height=6, message = FALSE}
+du_lieu_time_plot <- df_rm |>
+  group_by(
+    Happy_Sad_group,
+    Drug,
+    Dosage_f,
+    Time
+  ) |>
+  summarise(
+    n = n(),
+    mean_score = mean(
+      Mem_Score,
+      na.rm = TRUE
+    ),
+    se_score = sd(
+      Mem_Score,
+      na.rm = TRUE
+    ) / sqrt(n),
+    .groups = "drop"
+  )
+
+ggplot(
+  du_lieu_time_plot,
+  aes(
+    x = Time,
+    y = mean_score,
+    group = Dosage_f,
+    linetype = Dosage_f,
+    shape = Dosage_f
+  )
+) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2.5) +
+  geom_errorbar(
+    aes(
+      ymin = mean_score - se_score,
+      ymax = mean_score + se_score
+    ),
+    width = 0.08
+  ) +
+  facet_grid(
+    Happy_Sad_group ~ Drug
+  ) +
+  labs(
+    title = "Điểm ghi nhớ trung bình trước và sau thử nghiệm",
+    subtitle = "Thanh sai số biểu diễn trung bình ± 1 SE",
+    x = "Thời điểm đo",
+    y = "Mem_Score trung bình",
+    linetype = "Mức liều",
+    shape = "Mức liều"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom"
+  )
+```
+
+### Nhận xét
+
+Kết quả kiểm định cho thấy **hiệu ứng chính của `Time` có ý nghĩa thống kê**,
+nghĩa là điểm ghi nhớ trung bình có sự thay đổi giữa Before và After khi xét
+chung toàn bộ mẫu. Do `Diff = After - Before` có giá trị trung bình dương,
+thời gian hoàn thành bài kiểm tra sau thử nghiệm nhìn chung cao hơn trước thử
+nghiệm, tương ứng với khả năng gợi nhớ giảm.
+
+Các tương tác `Drug:Time` và `Dosage_f:Time` có ý nghĩa thống kê, cho thấy mức
+thay đổi trước--sau không giống nhau giữa các loại thuốc và giữa các mức liều.
+Đặc biệt, tương tác `Drug:Dosage_f:Time` có ý nghĩa mạnh, chứng tỏ ảnh hưởng
+của liều lượng lên sự thay đổi theo thời gian còn phụ thuộc vào loại thuốc.
+
+Biểu đồ cho thấy nhóm Alprazolam, đặc biệt ở liều cao, có mức tăng
+`Mem_Score` từ Before sang After rõ hơn các nhóm còn lại. Kết quả này phù hợp
+với tương tác `Drug:Dosage_f:Time` trong bảng kiểm định.
+
+Tương tác `Happy_Sad_group:Time` không có ý nghĩa, nên khi lấy trung bình qua
+các loại thuốc và mức liều, chưa phát hiện mức thay đổi khác nhau rõ rệt giữa
+hai nhóm Happy và Sad. Tuy nhiên, tương tác bốn chiều
+`Drug:Dosage_f:Happy_Sad_group:Time` có p-value xấp xỉ \(0.044\), vừa nhỏ hơn
+\(0.05\). Kết quả này cho thấy sự kết hợp giữa thuốc, liều lượng và thời gian
+có thể khác nhau giữa hai nhóm cảm xúc, nhưng cần diễn giải thận trọng vì
+p-value khá sát mức ý nghĩa 5%.
+
+Nhìn chung, **mức thay đổi trước--sau phụ thuộc chủ yếu vào sự kết hợp giữa
+loại thuốc và liều lượng**, trong khi ảnh hưởng riêng của nhóm Happy/Sad chưa
+thể hiện rõ.
