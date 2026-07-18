@@ -1,1 +1,223 @@
+```{r setup-phan-5, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      fig.align = "center", fig.width = 7.5, fig.height = 4.5)
 
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(emmeans)
+library(robustbase)
+library(effectsize)
+
+# Cho phep chay doc lap file nay (khong qua main.Rmd): neu df_model/mo_hinh_cuoi_cung
+# chua ton tai trong session, tai va tien xu ly lai du lieu, roi khop lai mo hinh
+# cuoi cung dung y het PhanChinh_1_2.Rmd va PhanChinh_3.Rmd.
+if (!exists("df_model")) {
+  df <- read.csv(here::here("Islander_data.csv"), stringsAsFactors = FALSE)
+  df <- df |>
+    mutate(
+      Dosage_f = factor(Dosage, levels = c(1, 2, 3),
+                         labels = c("Low", "Medium", "High")),
+      Drug = factor(Drug, levels = c("A", "T", "S"),
+                    labels = c("Alprazolam", "Triazolam", "Placebo")),
+      Drug = relevel(Drug, ref = "Placebo"),
+      Happy_Sad_group = factor(Happy_Sad_group, levels = c("H", "S"),
+                                labels = c("Happy", "Sad"))
+    )
+  df_model <- df |>
+    select(age, Happy_Sad_group, Dosage_f, Drug,
+           Mem_Score_Before, Mem_Score_After, Diff)
+}
+if (!exists("mo_hinh_cuoi_cung")) {
+  mo_hinh_cuoi_cung <- lm(Diff ~ Drug * Dosage_f, data = df_model)
+}
+```
+
+# Đề xuất cải tiến và các phân tích thay thế
+
+Kết quả ở Phần 4 cho thấy mô hình cuối cùng `Diff ~ Drug * Dosage_f` nhìn chung phù hợp: giả định độc lập hợp lý theo thiết kế, giả định đồng nhất phương sai được thỏa mãn (Levene, $p=0{,}44$), và biểu đồ phần dư không cho thấy dấu hiệu bỏ sót cấu trúc trung bình. Tuy nhiên, ba điểm hạn chế vẫn còn tồn tại:
+
+1.  **Giả định chuẩn của phần dư bị vi phạm** (Shapiro--Wilk $p\approx7{,}8\times10^{-6}$), chủ yếu do một vài quan trắc cực trị (dòng 49, dòng 110) làm dày đuôi phân phối.
+2.  Kết luận về từng nhân tố/tương tác trong Phần 3 chỉ dựa trên **partial F-test và t-test theo lý thuyết phân phối chuẩn**, trong khi giả định chuẩn chưa hoàn toàn được thỏa mãn.
+3.  Một số câu hỏi Phần 3--4 **chưa trả lời hết**: tương tác `Drug:Dosage_f` có ý nghĩa nhưng chưa chỉ rõ ở mức liều nào và giữa cặp thuốc nào là khác biệt thực sự; biến `age` được thu thập nhưng bị loại khỏi mô hình mà chưa có kiểm định trực tiếp; kết luận "không có ý nghĩa" của `Happy_Sad_group` ($p\approx0{,}282$) chỉ dừng ở việc không bác bỏ $H_0$, chưa lượng hoá được mức độ bằng chứng ủng hộ $H_0$.
+
+Phần này đề xuất một số phân tích bổ sung nhằm giải quyết các hạn chế trên, đồng thời kiểm tra xem kết luận chính của Phần 3 (thuốc, liều lượng và đặc biệt tương tác `Drug:Dosage_f` có ảnh hưởng mạnh đến `Diff`) có ổn định khi thay đổi phương pháp phân tích hay không.
+
+## Hậu kiểm (post-hoc) để định vị nguồn gốc của tương tác
+
+Partial F-test ở Phần 3 chỉ khẳng định tương tác `Drug:Dosage_f` tồn tại, chưa cho biết cụ thể cặp thuốc nào khác biệt ở từng mức liều. Sử dụng `emmeans` để so sánh từng cặp `Drug`, tách riêng theo từng mức `Dosage_f`, có hiệu chỉnh Tukey cho vấn đề so sánh bội (3 phép so sánh mỗi mức liều):
+
+```{r posthoc-emmeans}
+emm_drug_theo_dosage <- emmeans(mo_hinh_cuoi_cung, ~ Drug | Dosage_f)
+kq_posthoc <- pairs(emm_drug_theo_dosage, adjust = "tukey")
+kq_posthoc
+```
+
+```{r bang-posthoc, echo=FALSE}
+bang_posthoc <- as.data.frame(kq_posthoc) |>
+  mutate(p.value = format.pval(p.value, digits = 3, eps = 0.0001))
+
+kable(
+  bang_posthoc, digits = 3,
+  col.names = c("So sánh", "Dosage", "Chênh lệch", "SE", "df", "t", "p (hiệu chỉnh Tukey)"),
+  caption = "Hậu kiểm Tukey: so sánh Diff giữa các cặp Drug, tách theo từng mức Dosage"
+) |>
+  kable_styling(bootstrap_options = c("striped", "bordered", "condensed"),
+                latex_options = c("striped", "hold_position"), full_width = FALSE)
+```
+
+**Nhận xét:** Ở mức liều Thấp và Trung bình, hầu hết các cặp thuốc không khác biệt có ý nghĩa sau hiệu chỉnh Tukey (ngoại lệ nhẹ: Placebo so với Alprazolam ở liều Trung bình, $p\approx0{,}018$). Ở mức liều Cao, Alprazolam khác biệt rất mạnh so với cả Placebo và Triazolam ($p<0{,}0001$ cho cả hai so sánh), trong khi Placebo và Triazolam gần như không khác nhau ($p\approx0{,}98$). Kết quả hậu kiểm này định vị chính xác điều mà partial F-test và biểu đồ tương tác ở Phần 3 chỉ mô tả định tính: **toàn bộ tương tác `Drug:Dosage_f` phát sinh từ việc riêng Alprazolam ở liều Cao tách khỏi hai loại thuốc còn lại**, chứ không phải từ sự khác biệt lan toả đều giữa các thuốc ở mọi mức liều.
+
+## Đưa `age` vào mô hình như hiệp biến (ANCOVA) để kiểm tra biến bị bỏ sót
+
+Phần 1--2 xác định `age` là hiệp biến tiềm năng nhưng mô hình cuối cùng không sử dụng biến này. Thay vì loại bỏ theo trực giác, nên kiểm định trực tiếp bằng một partial F-test bổ sung `age` vào mô hình cuối cùng (mô hình ANCOVA), và kiểm tra thêm giả định *đồng nhất độ dốc hồi quy* (homogeneity of slopes) — điều kiện bắt buộc để ANCOVA hợp lệ, tức ảnh hưởng của `age` lên `Diff` phải giống nhau giữa các tổ hợp `Drug x Dosage_f`:
+
+```{r ancova-age}
+mo_hinh_ancova <- lm(Diff ~ Drug * Dosage_f + age, data = df_model)
+anova(mo_hinh_cuoi_cung, mo_hinh_ancova)
+
+mo_hinh_ancova_doc_lech <- lm(Diff ~ Drug * Dosage_f * age, data = df_model)
+anova(mo_hinh_ancova, mo_hinh_ancova_doc_lech)
+```
+
+**Nhận xét:** Việc bổ sung `age` chỉ làm giảm RSS một lượng rất nhỏ, cho $F(1,188)\approx0{,}76$, $p\approx0{,}38$ — không có ý nghĩa thống kê. Kiểm định đồng nhất độ dốc cũng không có ý nghĩa ($F(8,180)\approx0{,}32$, $p\approx0{,}96$), tức ảnh hưởng của tuổi lên `Diff` (nếu có) không đổi theo `Drug x Dosage_f`. Hai kết quả này **xác nhận bằng kiểm định thống kê** (chứ không chỉ bằng suy luận định tính) rằng quyết định loại `age` khỏi mô hình cuối cùng ở Phần 3 là hợp lý: đây không phải một biến gây nhiễu (confounder) bị bỏ sót.
+
+## Hồi quy vững (robust regression) thay cho loại bỏ thủ công quan trắc cực trị
+
+Ở Phần 4, ảnh hưởng của hai quan trắc cực trị (dòng 49, dòng 110) được đánh giá bằng cách *loại bỏ thủ công* rồi ước lượng lại mô hình — cách làm đơn giản nhưng phụ thuộc vào một ngưỡng tuỳ chọn ($|r_i^*|>3$). Một cách tiếp cận có nguyên tắc hơn là dùng **hồi quy vững** (MM-estimation, `robustbase::lmrob`), trong đó mọi quan trắc đều được giữ lại nhưng các điểm có phần dư lớn được **tự động giảm trọng số** một cách liên tục thay vì bị loại bỏ hoàn toàn hay giữ nguyên trọng số 1:
+
+Vì `contrasts(df_model$Dosage_f)` đã được đổi thành `contr.treatment(3)` với tên cột mặc định `"2"`/`"3"` ở Phần 3 (mục 3.2), một bản sao cục bộ của dữ liệu với `Dosage_f` được mã hoá lại bằng nhãn gốc (`Low`/`Medium`/`High`) được dùng riêng cho mục này, chỉ nhằm mục đích hiển thị tên hệ số dễ đọc hơn — hai cách mã hoá tương ứng với cùng một không gian mô hình nên giá trị ước lượng, sai số chuẩn và p-value không đổi:
+
+```{r robust-regression}
+df_model_p5 <- df_model |>
+  mutate(Dosage_f = factor(Dosage_f, levels = c("Low", "Medium", "High"), ordered = FALSE))
+mo_hinh_cuoi_cung_p5 <- lm(Diff ~ Drug * Dosage_f, data = df_model_p5)
+
+mo_hinh_robust <- lmrob(Diff ~ Drug * Dosage_f, data = df_model_p5)
+summary(mo_hinh_robust)$coefficients |> round(4)
+
+# Cac quan trac bi giam trong so manh nhat
+trong_so <- summary(mo_hinh_robust)$rweights
+sort(trong_so)[1:5]
+```
+
+```{r so-sanh-ols-robust, echo=FALSE, fig.width=9, fig.height=4.2}
+so_sanh_he_so <- bind_rows(
+  tibble(He_so = names(coef(mo_hinh_cuoi_cung_p5)), Estimate = coef(mo_hinh_cuoi_cung_p5),
+         CI_low = confint(mo_hinh_cuoi_cung_p5)[, 1], CI_high = confint(mo_hinh_cuoi_cung_p5)[, 2],
+         Phuong_phap = "OLS"),
+  tibble(He_so = names(coef(mo_hinh_robust)), Estimate = coef(mo_hinh_robust),
+         CI_low = confint(mo_hinh_robust)[, 1], CI_high = confint(mo_hinh_robust)[, 2],
+         Phuong_phap = "Robust (MM)")
+) |> filter(He_so != "(Intercept)")
+
+ggplot(so_sanh_he_so, aes(x = reorder(He_so, Estimate), y = Estimate, color = Phuong_phap)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
+  geom_pointrange(aes(ymin = CI_low, ymax = CI_high), position = position_dodge(width = 0.5)) +
+  coord_flip() +
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 22)) +
+  labs(title = "So sánh hệ số hồi quy: OLS so với hồi quy vững (MM-estimation)",
+       x = NULL, y = "Ước lượng hệ số (± khoảng tin cậy 95%)", color = NULL) +
+  theme(plot.title = element_text(size = 11), legend.position = "bottom")
+```
+
+**Nhận xét:** Trọng số vững thấp nhất rơi đúng vào dòng 110 và dòng 49 — hai quan trắc đã được Phần 4 xác định bằng Cook's distance và phần dư studentized, nay được xác nhận độc lập bởi một thuật toán khác. Hệ số của `DrugAlprazolam:Dosage_fHigh` giảm nhẹ từ $26{,}87$ (OLS) xuống $25{,}50$ (robust) nhưng **vẫn rất lớn và có ý nghĩa mạnh** ($p<10^{-14}$), khoảng tin cậy của hai phương pháp gần như trùng nhau ở biểu đồ trên. So với cách loại bỏ thủ công ở Phần 4, hồi quy vững cho kết luận tương tự nhưng không cần chọn ngưỡng loại bỏ tuỳ ý và vẫn sử dụng toàn bộ 198 quan trắc.
+
+## Kiểm định hoán vị (permutation test) cho tương tác `Drug:Dosage_f`
+
+Vì giả định chuẩn của phần dư chưa hoàn toàn thỏa mãn, giá trị p của partial F-test ở Phần 3 chỉ là xấp xỉ dựa trên phân phối lý thuyết $F$. Kiểm định hoán vị là phương án thay thế **phi tham số**, không đòi hỏi giả định phân phối: hoán vị ngẫu nhiên phần dư của mô hình cộng tính (`Drug + Dosage_f`) rồi cộng lại vào giá trị dự đoán để tạo dữ liệu giả lập dưới $H_0$ (không có tương tác), sau đó tính lại thống kê F của tương tác trên mỗi bộ dữ liệu hoán vị:
+
+```{r permutation-test}
+set.seed(2026)
+
+mo_hinh_cong_tinh <- lm(Diff ~ Drug + Dosage_f, data = df_model)
+F_quan_sat <- anova(mo_hinh_cong_tinh, mo_hinh_cuoi_cung)$F[2]
+
+phan_du_cong_tinh <- residuals(mo_hinh_cong_tinh)
+gia_tri_du_doan   <- fitted(mo_hinh_cong_tinh)
+
+so_lan_hoan_vi <- 4999
+F_hoan_vi <- numeric(so_lan_hoan_vi)
+for (i in seq_len(so_lan_hoan_vi)) {
+  du_lieu_hoan_vi <- df_model
+  du_lieu_hoan_vi$Diff_hoan_vi <- gia_tri_du_doan + sample(phan_du_cong_tinh)
+  m0 <- lm(Diff_hoan_vi ~ Drug + Dosage_f, data = du_lieu_hoan_vi)
+  m1 <- lm(Diff_hoan_vi ~ Drug * Dosage_f, data = du_lieu_hoan_vi)
+  F_hoan_vi[i] <- anova(m0, m1)$F[2]
+}
+
+p_hoan_vi <- (sum(F_hoan_vi >= F_quan_sat) + 1) / (so_lan_hoan_vi + 1)
+c(F_quan_sat = F_quan_sat, p_hoan_vi = p_hoan_vi)
+```
+
+**Nhận xét:** Trong toàn bộ $4999$ lần hoán vị, không có lần nào tạo ra giá trị F lớn hơn hoặc bằng giá trị F quan sát được ($\approx20{,}06$), cho $p_{\text{hoán vị}}\approx2\times10^{-4}$ — cùng kết luận với partial F-test lý thuyết ($p\approx8{,}7\times10^{-14}$) dù nhỏ hơn nhiều về độ lớn tuyệt đối (do số lần hoán vị hữu hạn giới hạn độ chính xác ước lượng p ở mức $1/5000$). Kết quả này củng cố thêm rằng tương tác `Drug:Dosage_f` không phải là hiện tượng giả tạo do vi phạm giả định chuẩn, mà là một hiệu ứng thực sự trong dữ liệu.
+
+## Kiểm tra nhu cầu biến đổi Box--Cox cho biến phụ thuộc
+
+Một hướng xử lý phổ biến khi phần dư lệch chuẩn là biến đổi biến phụ thuộc. Vì `Diff` có giá trị âm nên cần dịch chuyển một hằng số dương trước khi áp dụng Box--Cox:
+
+```{r box-cox}
+hang_so_dich <- -min(df_model$Diff) + 1
+bc <- MASS::boxcox(lm((Diff + hang_so_dich) ~ Drug * Dosage_f, data = df_model),
+                    plotit = TRUE, xlab = expression(lambda))
+lambda_uoc_luong <- bc$x[which.max(bc$y)]
+lambda_uoc_luong
+```
+
+**Nhận xét:** Giá trị $\hat\lambda\approx1{,}1$, và khoảng tin cậy xấp xỉ 95% của $\lambda$ (đọc từ đồ thị, phần đường cong log-likelihood nằm trên đường ngang ứng với ngưỡng $\chi^2_{1,0.95}$) chứa giá trị $\lambda=1$ — tức "không biến đổi" vẫn nằm trong khoảng hợp lý. Kết quả này phù hợp với nhận xét ở Phần 4 rằng phần lớn phần dư ở vùng trung tâm khá gần phân phối chuẩn, và sự lệch chuẩn chủ yếu đến từ một vài quan trắc cực trị ở hai đuôi chứ không phải toàn bộ phân phối bị lệch hệ thống. Vì vậy, biến đổi Box--Cox **không phải giải pháp phù hợp** trong trường hợp này — biến đổi toàn bộ thang đo của `Diff` sẽ làm mất đơn vị gốc (giây) có ý nghĩa diễn giải, trong khi không giải quyết triệt để vấn đề (vốn tập trung ở vài điểm ngoại lệ). Đây là lý do hồi quy vững và kiểm định hoán vị ở hai mục trên là hướng xử lý hợp lý hơn Box--Cox đối với dữ liệu này.
+
+## Kích thước hiệu ứng (effect size) bên cạnh giá trị p
+
+Phần 3 chỉ báo cáo giá trị F và p-value của từng partial F-test, cho biết hiệu ứng có ý nghĩa thống kê hay không nhưng chưa cho biết **độ lớn thực tế** của từng hiệu ứng. Bổ sung $\eta^2$ riêng phần (partial eta-squared) — tỷ lệ biến động của `Diff` mà mỗi nhân tố giải thích được, sau khi đã loại bỏ phần biến động do các nhân tố khác trong mô hình:
+
+```{r eta-squared}
+eta2 <- effectsize::eta_squared(mo_hinh_cuoi_cung, partial = TRUE)
+eta2
+```
+
+```{r bieu-do-eta2, echo=FALSE, fig.height=3}
+as.data.frame(eta2) |>
+  ggplot(aes(x = reorder(Parameter, Eta2_partial), y = Eta2_partial)) +
+  geom_col(width = 0.5, fill = "#2c7fb8") +
+  geom_errorbar(aes(ymin = CI_low, ymax = pmin(CI_high, 1)), width = 0.15) +
+  coord_flip() +
+  labs(title = expression(paste("Kích thước hiệu ứng ", eta[partial]^2, " của từng nhân tố")),
+       x = NULL, y = expression(eta[partial]^2)) +
+  theme(plot.title = element_text(size = 11))
+```
+
+**Nhận xét:** Tương tác `Drug:Dosage_f` có $\eta^2_{partial}\approx0{,}30$, lớn hơn cả hiệu ứng chính của `Drug` ($\approx0{,}26$) và `Dosage_f` ($\approx0{,}09$) — theo quy ước kinh nghiệm của Cohen, cả ba đều thuộc mức "lớn" ($\eta^2_{partial}>0{,}14$), nhưng tương tác đóng góp tỷ lệ biến động lớn nhất. Chỉ số này định lượng lại đúng thứ tự quan trọng mà biểu đồ giá trị F ở Phần 3 đã gợi ý, đồng thời cung cấp một con số có thể so sánh giữa các nghiên cứu khác nhau — điều mà riêng giá trị p không làm được. Cách tiếp cận này cũng gợi ý một hướng xử lý phù hợp hơn cho trường hợp `Happy_Sad_group` ($p\approx0{,}282$ ở Phần 3): thay vì chỉ dừng ở kết luận "không bác bỏ $H_0$" — vốn không đồng nghĩa với "$H_0$ đúng" — có thể bổ sung hệ số Bayes (Bayes factor, ví dụ qua gói `BayesFactor`) để lượng hoá mức độ bằng chứng ủng hộ giả thuyết không có hiệu ứng, thay vì chỉ dựa vào việc không đạt ngưỡng $\alpha=0{,}05$.
+
+## Tổng hợp và khuyến nghị mở rộng
+
+```{r bang-tong-hop-de-xuat, echo=FALSE}
+bang_tong_hop <- data.frame(
+  Han_che_o_Phan_3_4 = c(
+    "Chưa rõ tương tác Drug:Dosage phát sinh từ cặp thuốc/mức liều nào",
+    "age bị loại khỏi mô hình chỉ dựa trên suy luận định tính",
+    "Hai quan trắc cực trị được xử lý bằng loại bỏ thủ công, phụ thuộc ngưỡng tuỳ chọn",
+    "Giá trị p của partial F-test dựa trên giả định chuẩn đã bị vi phạm",
+    "Chưa lượng hoá độ lớn thực tế của từng hiệu ứng"
+  ),
+  De_xuat = c(
+    "Hậu kiểm Tukey theo từng mức Dosage (mục 5.1)",
+    "ANCOVA + kiểm định đồng nhất độ dốc (mục 5.2)",
+    "Hồi quy vững MM-estimation (mục 5.3)",
+    "Kiểm định hoán vị phi tham số (mục 5.4)",
+    "Eta-squared riêng phần / Bayes factor (mục 5.6)"
+  )
+)
+kable(bang_tong_hop, col.names = c("Hạn chế ở Phần 3--4", "Phân tích bổ sung đề xuất"),
+      caption = "Tóm tắt các phân tích thay thế/bổ sung được đề xuất trong Phần 5") |>
+  kable_styling(bootstrap_options = c("striped", "bordered", "condensed"),
+                latex_options = c("striped", "hold_position"), full_width = FALSE) |>
+  column_spec(1, width = "8cm") |> column_spec(2, width = "6cm")
+```
+
+Toàn bộ các phân tích thay thế ở trên đều **xác nhận lại**, chứ không đảo ngược, kết luận chính của Phần 3: `Drug`, `Dosage_f` và đặc biệt tương tác `Drug:Dosage_f` — với hạt nhân là quan hệ liều--đáp ứng riêng của Alprazolam ở liều Cao — có ảnh hưởng thực sự đến `Diff`, không phải hiện tượng giả tạo do vi phạm giả định hay do một vài quan trắc cực trị chi phối. Đây là điểm quan trọng: mô hình `Diff ~ Drug * Dosage_f` ở Phần 3 vẫn là lựa chọn hợp lý để trình bày làm mô hình chính; các phân tích ở Phần 5 đóng vai trò **kiểm chứng độ ổn định** (robustness check) hơn là thay thế.
+
+Ngoài các phân tích có thể thực hiện trực tiếp trên bộ dữ liệu hiện có, một số cải tiến sẽ cần **thu thập thêm dữ liệu** và nằm ngoài phạm vi bộ dữ liệu này:
+
+- **Cỡ mẫu mỗi ô còn nhỏ** (khoảng 21--23 quan trắc trong mỗi tổ hợp `Drug x Dosage_f`). Với cỡ mẫu lớn hơn, các hiệu ứng có kích thước nhỏ hơn — như `Happy_Sad_group` ($\eta^2_{partial}$ chưa được ước lượng do đã bị loại khỏi mô hình cuối, nhưng kiểm định gộp ở Phần 3 cho $p\approx0{,}282$) hoặc tương tác bậc bốn `Drug:Dosage_f:Happy_Sad_group:Time` ở Yêu cầu mở rộng ($p\approx0{,}044$, khá sát ngưỡng) — có thể được ước lượng chính xác hơn thay vì nằm ở vùng chưa đủ bằng chứng.
+- **Chỉ có ba mức liều rời rạc** nên đường cong liều--đáp ứng của Alprazolam mới chỉ được quan sát tại ba điểm. Nếu thu thập thêm dữ liệu ở các mức liều trung gian, có thể chuyển từ ANOVA (Dosage như nhân tố phân loại) sang **hồi quy phi tuyến theo liều lượng** (ví dụ mô hình dạng Emax hoặc log-liều tuyến tính từng khúc), mô tả trực tiếp hình dạng quan hệ liều--đáp ứng thay vì chỉ so sánh ba mức rời rạc.
+- Về mặt mô hình cho dữ liệu lặp trước--sau, Yêu cầu mở rộng đã trình bày một hướng tiếp cận thay thế đầy đủ hơn — ANOVA nhiều nhân tố với dữ liệu lặp (repeated-measures/mixed ANOVA trên cả `Mem_Score_Before` và `Mem_Score_After`, thay vì nén thành `Diff`) — cho phép tách riêng hiệu ứng chính của `Time`. Đây là một cải tiến quan trọng bổ sung cho các đề xuất ở Phần 5, được trình bày riêng ở phần sau do khối lượng nội dung lớn.

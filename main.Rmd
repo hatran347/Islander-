@@ -34,16 +34,39 @@ link-citations: true
 # The default pdf() device cannot draw Vietnamese diacritics, and cairo_pdf
 # is unavailable here (needs XQuartz). showtext draws text as glyphs from a
 # system font file, so it works on the default device with full Unicode.
+#
+# NOTE: "/System/Library/Fonts/Times.ttc" is Apple's own "Times" clone, a
+# different, glyph-reduced font from the actual "Times New Roman" used by
+# xelatex for the body text (mainfont, YAML above). That reduced glyph set is
+# missing some Vietnamese letters (e.g. "o with circumflex + grave" as in
+# "hồi") and mis-shapes some clusters (e.g. "ươ" as in "Tương"), so chart
+# titles using those words showed as tofu boxes or malformed glyphs. Pointing
+# at the real Times New Roman.ttf (same font family the body text already
+# renders correctly) fixes this; Times.ttc is kept only as a fallback for
+# machines where the Supplemental font isn't installed.
 library(showtext)
-times_path <- "/System/Library/Fonts/Times.ttc"
+times_path <- "/System/Library/Fonts/Supplemental/Times New Roman.ttf"
+if (!file.exists(times_path)) times_path <- "/System/Library/Fonts/Times.ttc"
 if (file.exists(times_path)) sysfonts::font_add("Times", regular = times_path)
 showtext_auto()
+
+# ggplot's default text family ("") is not the "Times" family registered above,
+# so showtext falls back to a substitute font instead. Setting base_family
+# here forces every ggplot chart to use the font registered above, without
+# editing each individual theme() call.
+ggplot2::theme_set(ggplot2::theme_gray(base_family = "Times"))
 
 knitr::opts_chunk$set(
   echo = TRUE,
   message = FALSE,
   warning = FALSE,
-  fig.showtext = TRUE
+  fig.showtext = TRUE,
+  # Figures wider than the page's text width (e.g. fig.width = 7.5in against
+  # ~6.3in of usable width under margin=2.5cm) were embedded via bare
+  # \includegraphics with no scaling, so they bled past the right margin and
+  # clipped content in multi-panel charts. Scaling every figure to the text
+  # width fixes this uniformly without changing any individual chunk options.
+  out.width = "100%"
 )
 ```
 
