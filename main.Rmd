@@ -57,7 +57,7 @@ showtext_auto()
 ggplot2::theme_set(ggplot2::theme_gray(base_family = "Times"))
 
 knitr::opts_chunk$set(
-  echo = TRUE,
+  echo = FALSE,
   message = FALSE,
   warning = FALSE,
   fig.showtext = TRUE,
@@ -112,32 +112,38 @@ knitr::opts_chunk$set(
 
 \vspace{0.6em}
 {\small
-\renewcommand{\arraystretch}{1.2}
-\begin{tabular}{|>{\raggedright\arraybackslash}p{3.2cm}|>{\centering\arraybackslash}p{1.8cm}|>{\raggedright\arraybackslash}p{6cm}|>{\centering\arraybackslash}p{1.8cm}|}
+\renewcommand{\arraystretch}{1.4} % Tăng độ giãn dòng tổng thể của bảng
+\begin{tabular}{|>{\raggedright\arraybackslash}p{3.8cm}|>{\centering\arraybackslash}p{2.0cm}|>{\raggedright\arraybackslash}p{7.5cm}|>{\centering\arraybackslash}p{2.0cm}|}
 \hline
 \textbf{Họ và Tên} & \textbf{Mã số HV} & \textbf{Công việc} & \textbf{Mức độ hoàn thành} \\
 \hline
 Trần Việt Hà & 25C23020 &
-\begin{itemize}[leftmargin=*, topsep=0pt, partopsep=0pt, itemsep=2pt, parsep=0pt]
+\vspace{-0.3cm} % Căn chỉnh viền trên vừa phải
+\begin{itemize}[leftmargin=*, topsep=0pt, partopsep=0pt, itemsep=3pt, parsep=0pt]
 \item Kiểm tra các giả định của mô hình, rút ra nhận xét, kết luận
-\item Đề xuất cải tiến
 \item Kiểm định các hiệu ứng liên quan đến "Time"
 \item So sánh kết quả với ANOVA k nhân tố
 \end{itemize}
+\vspace{-0.4cm} % Căn chỉnh viền dưới vừa phải
 & 100\% \\
 \hline
 Nguyễn Đình Mai Vi & 25C23005 &
-\begin{itemize}[leftmargin=*, topsep=0pt, partopsep=0pt, itemsep=2pt, parsep=0pt]
+\vspace{-0.3cm}
+\begin{itemize}[leftmargin=*, topsep=0pt, partopsep=0pt, itemsep=3pt, parsep=0pt]
 \item ANOVA k nhân tố
 \item Nhận xét ưu điểm, hạn chế, khác biệt trong cách diễn giải của hai cách tiếp cận
 \end{itemize}
+\vspace{-0.4cm}
 & 100\% \\
 \hline
 Vũ Hà Thư & 25C23004 &
-\begin{itemize}[leftmargin=*, topsep=0pt, partopsep=0pt, itemsep=2pt, parsep=0pt]
+\vspace{-0.3cm}
+\begin{itemize}[leftmargin=*, topsep=0pt, partopsep=0pt, itemsep=3pt, parsep=0pt]
 \item Tiền xử lý dữ liệu, Trực quan hóa dữ liệu
 \item Xây dựng mô hình với nhân tố lặp "Time"
+\item Đề xuất cải tiến và các phân tích thay thế
 \end{itemize}
+\vspace{-0.4cm}
 & 100\% \\
 \hline
 \end{tabular}

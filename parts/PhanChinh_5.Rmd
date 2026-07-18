@@ -1,5 +1,5 @@
 ```{r setup-phan-5, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE,
                       fig.align = "center", fig.width = 7.5, fig.height = 4.5)
 
 library(tidyverse)
@@ -72,13 +72,57 @@ kable(
 
 Phần 1--2 xác định `age` là hiệp biến tiềm năng nhưng mô hình cuối cùng không sử dụng biến này. Thay vì loại bỏ theo trực giác, nên kiểm định trực tiếp bằng một partial F-test bổ sung `age` vào mô hình cuối cùng (mô hình ANCOVA), và kiểm tra thêm giả định *đồng nhất độ dốc hồi quy* (homogeneity of slopes) — điều kiện bắt buộc để ANCOVA hợp lệ, tức ảnh hưởng của `age` lên `Diff` phải giống nhau giữa các tổ hợp `Drug x Dosage_f`:
 
+### Kiểm định ý nghĩa của biến đồng biến (*age*)
+
+Giả thuyết kiểm định:
+
+\[
+H_0:\ \beta_{age}=0,
+\]
+
+tức là sau khi đã xét các nhân tố `Drug` và `Dosage_f`, biến `age` không đóng góp thêm vào mô hình.
+
+\[
+H_1:\ \beta_{age}\neq0,
+\]
+
+tức là biến `age` có đóng góp vào mô hình và việc bổ sung `age` giúp cải thiện khả năng giải thích của mô hình.
+
 ```{r ancova-age}
 mo_hinh_ancova <- lm(Diff ~ Drug * Dosage_f + age, data = df_model)
 anova(mo_hinh_cuoi_cung, mo_hinh_ancova)
+```
 
+Kết quả kiểm định cho thấy \(F = 0.7636\) với \(p = 0.3833 > 0.05\). Do đó, không bác bỏ giả thuyết \(H_0\) ở mức ý nghĩa 5%.
+
+Điều này cho thấy sau khi đã xét đến các nhân tố `Drug`, `Dosage_f` và tương tác giữa chúng, việc bổ sung biến đồng biến `age` không làm cải thiện có ý nghĩa thống kê khả năng giải thích của mô hình. Nói cách khác, chưa có đủ bằng chứng để kết luận `age` có ảnh hưởng đáng kể đến biến phản hồi `Diff`.
+
+### Kiểm định giả định đồng nhất hệ số góc (*Homogeneity of Regression Slopes*)
+
+Một giả định quan trọng của ANCOVA là mối quan hệ giữa biến đồng biến `age` và biến phụ thuộc `Diff` phải giống nhau ở tất cả các nhóm, hay nói cách khác, hệ số góc của hồi quy theo `age` không được thay đổi giữa các nhóm `Drug` và `Dosage_f`. Giả định này được kiểm định bằng cách bổ sung các tương tác giữa `age` và các nhân tố phân loại vào mô hình.
+
+Giả thuyết kiểm định:
+
+\[
+H_0:\ (age:Drug)=(age:Dosage_f)=(age:Drug:Dosage_f)=0,
+\]
+
+tức là không tồn tại tương tác giữa `age` và các nhân tố phân loại; độ dốc hồi quy theo `age` là như nhau ở mọi nhóm.
+
+\[
+H_1:\ \text{Có ít nhất một tương tác chứa } age \text{ khác }0,
+\]
+
+tức là tồn tại ít nhất một nhóm có độ dốc hồi quy theo `age` khác với các nhóm còn lại.
+
+```{r ancova-homogeneity-slopes}
 mo_hinh_ancova_doc_lech <- lm(Diff ~ Drug * Dosage_f * age, data = df_model)
 anova(mo_hinh_ancova, mo_hinh_ancova_doc_lech)
 ```
+
+Kết quả kiểm định cho thấy \(F = 0.3229\) với \(p = 0.9565 > 0.05\). Do đó, không bác bỏ giả thuyết \(H_0\) ở mức ý nghĩa 5%.
+
+Điều này cho thấy không có bằng chứng thống kê về sự tồn tại của các tương tác giữa `age` và các nhân tố phân loại (`Drug`, `Dosage_f`). Nói cách khác, mối quan hệ giữa `age` và `Diff` là tương đối giống nhau ở tất cả các nhóm, hay giả định đồng nhất hệ số góc (Homogeneity of Regression Slopes) của ANCOVA được thỏa mãn.
 
 **Nhận xét:** Việc bổ sung `age` chỉ làm giảm RSS một lượng rất nhỏ, cho $F(1,188)\approx0{,}76$, $p\approx0{,}38$ — không có ý nghĩa thống kê. Kiểm định đồng nhất độ dốc cũng không có ý nghĩa ($F(8,180)\approx0{,}32$, $p\approx0{,}96$), tức ảnh hưởng của tuổi lên `Diff` (nếu có) không đổi theo `Drug x Dosage_f`. Hai kết quả này **xác nhận bằng kiểm định thống kê** (chứ không chỉ bằng suy luận định tính) rằng quyết định loại `age` khỏi mô hình cuối cùng ở Phần 3 là hợp lý: đây không phải một biến gây nhiễu (confounder) bị bỏ sót.
 
@@ -122,6 +166,22 @@ ggplot(so_sanh_he_so, aes(x = reorder(He_so, Estimate), y = Estimate, color = Ph
 ## Kiểm định hoán vị (permutation test) cho tương tác `Drug:Dosage_f`
 
 Vì giả định chuẩn của phần dư chưa hoàn toàn thỏa mãn, giá trị p của partial F-test ở Phần 3 chỉ là xấp xỉ dựa trên phân phối lý thuyết $F$. Kiểm định hoán vị là phương án thay thế **phi tham số**, không đòi hỏi giả định phân phối: hoán vị ngẫu nhiên phần dư của mô hình cộng tính (`Drug + Dosage_f`) rồi cộng lại vào giá trị dự đoán để tạo dữ liệu giả lập dưới $H_0$ (không có tương tác), sau đó tính lại thống kê F của tương tác trên mỗi bộ dữ liệu hoán vị:
+
+Do các giả định của ANOVA (đặc biệt là giả định phân phối chuẩn của phần dư) chưa hoàn toàn được thỏa mãn, kiểm định hoán vị (permutation test) được sử dụng để đánh giá lại ý nghĩa của hiệu ứng tương tác `Drug:Dosage_f` mà không phụ thuộc vào phân phối lý thuyết của thống kê \(F\).
+
+Giả thuyết kiểm định:
+
+\[
+H_0:\ (\text{Drug}:\text{Dosage}_f)=0,
+\]
+
+tức là **không tồn tại tương tác giữa loại thuốc (`Drug`) và liều lượng (`Dosage_f`)**; ảnh hưởng của liều lượng lên `Diff` là như nhau đối với mọi loại thuốc.
+
+\[
+H_1:\ (\text{Drug}:\text{Dosage}_f)\neq0,
+\]
+
+tức là **tồn tại tương tác giữa loại thuốc và liều lượng**; ảnh hưởng của liều lượng lên `Diff` phụ thuộc vào loại thuốc được sử dụng.
 
 ```{r permutation-test}
 set.seed(2026)

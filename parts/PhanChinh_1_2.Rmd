@@ -1,7 +1,7 @@
 
 
 ```{r setup-phan-1-2, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE,
                       fig.align = "center", fig.width = 7.5, fig.height = 4.5)
 
 library(tidyverse)
@@ -79,7 +79,7 @@ dim(df)
 str(df)
 ```
 
-Bộ dữ liệu có 198 quan trắc (hàng) và 9 biến (cột). Biến `first_name`/`last_name` là ký tự, `age`/`Dosage`/`Mem_Score_Before`/`Mem_Score_After`/`Diff` là số, `Happy_Sad_group`/`Drug` là ký tự.
+Bộ dữ liệu có 198 quan trắc (hàng) và 9 biến (cột). Biến `first_name`/`last_name` là ký tự, `age` /`Dosage` /`Mem_Score_Before` /`Mem_Score_After` /`Diff` là số, `Happy_Sad_group`/`Drug` là ký tự.
 ```{r xem-truoc}
 head(df)
 summary(df)
