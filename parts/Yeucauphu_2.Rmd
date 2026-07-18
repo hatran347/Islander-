@@ -1,7 +1,7 @@
 ## Kiểm định các hiệu ứng liên quan đến Time
 
 Các hiệu ứng liên quan đến `Time` được kiểm định trong tầng sai số
-`Subject:Time`. Trong đó, hiệu ứng chính của `Time` cho biết điểm ghi nhớ có
+`Subject:Time`. Trong đó, hiệu ứng chính của `Time` cho biết khả năng gợi nhớ có
 thay đổi giữa Before và After hay không; các tương tác có chứa `Time` cho biết
 mức thay đổi trước--sau có khác nhau giữa các nhóm hay không.
 
@@ -124,7 +124,7 @@ ggplot(
     Happy_Sad_group ~ Drug
   ) +
   labs(
-    title = "Điểm ghi nhớ trung bình trước và sau thử nghiệm",
+    title = "khả năng gợi nhớ trung bình trước và sau thử nghiệm",
     subtitle = "Thanh sai số biểu diễn trung bình ± 1 SE",
     x = "Thời điểm đo",
     y = "Mem_Score trung bình",
@@ -140,7 +140,7 @@ ggplot(
 ### Nhận xét
 
 Kết quả kiểm định cho thấy **hiệu ứng chính của `Time` có ý nghĩa thống kê**,
-nghĩa là điểm ghi nhớ trung bình có sự thay đổi giữa Before và After khi xét
+nghĩa là khả năng gợi nhớ trung bình có sự thay đổi giữa Before và After khi xét
 chung toàn bộ mẫu. Do `Diff = After - Before` có giá trị trung bình dương,
 thời gian hoàn thành bài kiểm tra sau thử nghiệm nhìn chung cao hơn trước thử
 nghiệm, tương ứng với khả năng gợi nhớ giảm.

@@ -1,5 +1,5 @@
 ```{r setup-yeucauphu-4, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE,
                       fig.align = "center", fig.width = 7.5, fig.height = 4.5)
 
 library(tidyverse)
@@ -17,7 +17,7 @@ Phần chính phân tích `Diff = Mem_Score_After - Mem_Score_Before` bằng ANO
 bang_so_sanh <- data.frame(
   Tieu_chi = c(
     "Dữ liệu đưa vào mô hình",
-    "Trả lời được câu hỏi \"điểm ghi nhớ có đổi chung không?\"",
+    "Trả lời được câu hỏi \"khả năng gợi nhớ có đổi chung không?\"",
     "Tách hiệu ứng chính Drug/Dosage/HSG khỏi phần tương tác với Time",
     "Số giả định cần kiểm tra",
     "Độ phức tạp khi diễn giải hệ số",
@@ -109,7 +109,7 @@ Từ bảng trên, "khác biệt trong cách diễn giải" cụ thể là:
 
 - **`Drug`, `Dosage_f` và tương tác `Drug:Dosage_f`: cùng một chữ "có ý nghĩa" nhưng chỉ đúng ở đúng một vị trí.** Cả ba đều **không có ý nghĩa** ở tầng `Subject` ($p=0{,}081$; $0{,}252$; $0{,}808$) nhưng **rất có ý nghĩa** ở tầng `Subject:Time` ($p<0{,}0001$ cho cả ba). Nói cách khác: nếu bỏ qua thời điểm đo và chỉ so trung bình `Mem_Score` chung của từng nhóm, ba nhân tố này **không hề khác nhau**; chúng chỉ khác nhau ở *mức thay đổi* từ Before sang After. ANOVA trên `Diff` chỉ nhìn thấy được đúng vế thứ hai (khối `Drug` có $p=1{,}88\times10^{-21}$), vì bản thân biến `Diff` chỉ đo phần thay đổi, không còn giữ thông tin về mức ghi nhớ chung. Vì vậy câu diễn giải đúng phải là "loại thuốc/liều lượng làm thay đổi **tốc độ suy giảm gợi nhớ**", chứ không phải "loại thuốc/liều lượng làm khác biệt khả năng gợi nhớ nói chung" -- một cách diễn giải mà chỉ ANOVA đo lặp mới phân biệt rõ được, còn ANOVA trên `Diff` không có đủ thông tin để phân biệt hai cách nói này.
 
-- **`Happy_Sad_group`: kết luận "không ý nghĩa" nhất quán ở cả ba vị trí, nên bằng chứng "không có hiệu ứng" ở đây chắc chắn hơn so với `Drug`/`Dosage`.** Vì $p=0{,}842$ (tầng `Subject`), $p=0{,}723$ (tầng `Subject:Time`) và $p=0{,}282$ (khối trên `Diff`) đều lớn hơn hẳn 0.05, có thể kết luận nhóm cảm xúc (vui/buồn) không ảnh hưởng đến điểm ghi nhớ **dù xét theo mức chung hay theo mức thay đổi** -- một kết luận mạnh hơn so với `Drug`/`Dosage`, nơi câu trả lời phụ thuộc hoàn toàn vào việc đang hỏi "mức chung" hay "mức thay đổi".
+- **`Happy_Sad_group`: kết luận "không ý nghĩa" nhất quán ở cả ba vị trí, nên bằng chứng "không có hiệu ứng" ở đây chắc chắn hơn so với `Drug`/`Dosage`.** Vì $p=0{,}842$ (tầng `Subject`), $p=0{,}723$ (tầng `Subject:Time`) và $p=0{,}282$ (khối trên `Diff`) đều lớn hơn hẳn 0.05, có thể kết luận nhóm cảm xúc (vui/buồn) không ảnh hưởng đến khả năng gợi nhớ **dù xét theo mức chung hay theo mức thay đổi** -- một kết luận mạnh hơn so với `Drug`/`Dosage`, nơi câu trả lời phụ thuộc hoàn toàn vào việc đang hỏi "mức chung" hay "mức thay đổi".
 
 - **Tương tác bậc bốn `Drug:Dosage_f:Happy_Sad_group:Time` chỉ tồn tại ở ANOVA đo lặp** ($p=0{,}064$, không có ý nghĩa nhưng khá gần ngưỡng) **vì ANOVA trên `Diff` không có cách nào tách một tương tác bậc bốn có chứa `Time` ra khỏi khối `Happy_Sad_group`** -- khối này trên `Diff` ($p=0{,}282$) đã gộp chung hiệu ứng chính lẫn mọi tương tác của `Happy_Sad_group`, không phân biệt được phần nào đến từ tương tác ba chiều với `Time`.
 
@@ -119,7 +119,7 @@ Từ bảng trên, "khác biệt trong cách diễn giải" cụ thể là:
 
 - Cả hai đều dựa trên giả định phần dư có phân phối chuẩn; mục 4 đã cho thấy giả định này bị vi phạm nhẹ ở mô hình trên `Diff` (Shapiro--Wilk $p\approx7{,}8\times10^{-6}$), chủ yếu do vài quan trắc cực trị -- hạn chế này nhiều khả năng cũng ảnh hưởng đến ANOVA đo lặp vì cùng dùng chung một bộ dữ liệu và cùng những quan trắc cực trị đó.
 - Cỡ mẫu mỗi tổ hợp nhân tố còn nhỏ (khoảng 10--12 quan trắc/ô trong thiết kế 18 tổ hợp), nên các hiệu ứng có kích thước nhỏ -- như `Happy_Sad_group` hoặc tương tác bậc bốn `Drug:Dosage_f:Happy_Sad_group:Time` -- khó được ước lượng chính xác ở cả hai cách tiếp cận.
-- Không cách tiếp cận nào một mình đủ để trả lời trọn vẹn câu hỏi nghiên cứu: ANOVA trên `Diff` đơn giản, dễ diễn giải và đủ dùng nếu câu hỏi chỉ là "nhân tố nào ảnh hưởng đến mức thay đổi"; ANOVA đo lặp phức tạp hơn nhưng cần thiết nếu còn muốn biết liệu bản thân điểm ghi nhớ (không phân biệt thời điểm) có khác nhau giữa các nhóm hay không.
+- Không cách tiếp cận nào một mình đủ để trả lời trọn vẹn câu hỏi nghiên cứu: ANOVA trên `Diff` đơn giản, dễ diễn giải và đủ dùng nếu câu hỏi chỉ là "nhân tố nào ảnh hưởng đến mức thay đổi"; ANOVA đo lặp phức tạp hơn nhưng cần thiết nếu còn muốn biết liệu bản thân khả năng gợi nhớ (không phân biệt thời điểm) có khác nhau giữa các nhóm hay không.
 
 ### Kết luận
 
