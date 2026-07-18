@@ -1,6 +1,6 @@
 # Kiểm tra các giả định của mô hình & nhận xét
 
-Từ quy trình rút gọn mô hình ở Phần 3, toàn bộ các số hạng liên quan đến `Happy_Sad_group` đã được loại bỏ do không có ý nghĩa thống kê. Vì vậy, mô hình được sử dụng để kiểm tra giả định là mô hình ANOVA hai nhân tố có tương tác:
+Từ quy trình rút gọn mô hình ở phần xây dựng mô hình ở trên, toàn bộ các số hạng liên quan đến `Happy_Sad_group` đã được loại bỏ do không có ý nghĩa thống kê. Vì vậy, mô hình được sử dụng để kiểm tra giả định là mô hình ANOVA hai nhân tố có tương tác:
 
 $$\text{Diff}_{ijk}
 =

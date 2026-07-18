@@ -156,11 +156,13 @@ với tương tác `Drug:Dosage_f:Time` trong bảng kiểm định.
 
 Tương tác `Happy_Sad_group:Time` không có ý nghĩa, nên khi lấy trung bình qua
 các loại thuốc và mức liều, chưa phát hiện mức thay đổi khác nhau rõ rệt giữa
-hai nhóm Happy và Sad. Tuy nhiên, tương tác bốn chiều
-`Drug:Dosage_f:Happy_Sad_group:Time` có p-value xấp xỉ \(0.044\), vừa nhỏ hơn
-\(0.05\). Kết quả này cho thấy sự kết hợp giữa thuốc, liều lượng và thời gian
-có thể khác nhau giữa hai nhóm cảm xúc, nhưng cần diễn giải thận trọng vì
-p-value khá sát mức ý nghĩa 5%.
+hai nhóm Happy và Sad. Tương tác bốn chiều
+`Drug:Dosage_f:Happy_Sad_group:Time` có p-value xấp xỉ \(0.064\), lớn hơn
+\(0.05\) nên cũng không có ý nghĩa thống kê ở mức 5%. Kết quả này cho thấy
+chưa có đủ bằng chứng để kết luận sự kết hợp giữa thuốc, liều lượng và thời
+gian khác nhau giữa hai nhóm cảm xúc; tuy nhiên vì p-value khá gần ngưỡng
+0.05, không thể loại trừ hoàn toàn khả năng tồn tại một hiệu ứng nhỏ mà cỡ
+mẫu hiện tại chưa đủ để phát hiện chắc chắn.
 
 Nhìn chung, **mức thay đổi trước--sau phụ thuộc chủ yếu vào sự kết hợp giữa
 loại thuốc và liều lượng**, trong khi ảnh hưởng riêng của nhóm Happy/Sad chưa

@@ -112,15 +112,33 @@ knitr::opts_chunk$set(
 
 \vspace{0.6em}
 {\small
-\begin{tabular}{|l|c|p{5.5cm}|c|}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|>{\raggedright\arraybackslash}p{3.2cm}|>{\centering\arraybackslash}p{1.8cm}|>{\raggedright\arraybackslash}p{6cm}|>{\centering\arraybackslash}p{1.8cm}|}
 \hline
 \textbf{Họ và Tên} & \textbf{Mã số HV} & \textbf{Công việc} & \textbf{Mức độ hoàn thành} \\
 \hline
-Trần Việt Hà       & 25C23020 & \textit{[Điền nhiệm vụ]} & 100\% \\
+Trần Việt Hà & 25C23020 &
+\begin{itemize}[leftmargin=*, topsep=0pt, partopsep=0pt, itemsep=2pt, parsep=0pt]
+\item Kiểm tra các giả định của mô hình, rút ra nhận xét, kết luận
+\item Đề xuất cải tiến
+\item Kiểm định các hiệu ứng liên quan đến "Time"
+\item So sánh kết quả với ANOVA k nhân tố
+\end{itemize}
+& 100\% \\
 \hline
-Nguyễn Đình Mai Vi & 25C23005 & \textit{[Điền nhiệm vụ]} & 100\% \\
+Nguyễn Đình Mai Vi & 25C23005 &
+\begin{itemize}[leftmargin=*, topsep=0pt, partopsep=0pt, itemsep=2pt, parsep=0pt]
+\item ANOVA k nhân tố
+\item Nhận xét ưu điểm, hạn chế, khác biệt trong cách diễn giải của hai cách tiếp cận
+\end{itemize}
+& 100\% \\
 \hline
-Vũ Hà Thư          & 25C23004 & \textit{[Điền nhiệm vụ]} & 100\% \\
+Vũ Hà Thư & 25C23004 &
+\begin{itemize}[leftmargin=*, topsep=0pt, partopsep=0pt, itemsep=2pt, parsep=0pt]
+\item Tiền xử lý dữ liệu, Trực quan hóa dữ liệu
+\item Xây dựng mô hình với nhân tố lặp "Time"
+\end{itemize}
+& 100\% \\
 \hline
 \end{tabular}
 }
@@ -155,7 +173,7 @@ Vũ Hà Thư          & 25C23004 & \textit{[Điền nhiệm vụ]} & 100\% \\
 
 \newpage
 
-# Yêu cầu mở rộng (khuyến khích, không bắt buộc)
+# Yêu cầu mở rộng
 
 ```{r child="parts/Yeucauphu_1.Rmd"}
 ```
@@ -170,5 +188,9 @@ Vũ Hà Thư          & 25C23004 & \textit{[Điền nhiệm vụ]} & 100\% \\
 ```
 
 # Tài liệu tham khảo
+
+```{=latex}
+\raggedright
+```
 
 Almohalwas, A. *Memory Test on Drugged Islanders Data*. Kaggle. <https://www.kaggle.com/datasets/steveahn/memory-test-on-drugged-islanders-data>

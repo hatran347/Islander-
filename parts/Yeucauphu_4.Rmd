@@ -1,1 +1,126 @@
+```{r setup-yeucauphu-4, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      fig.align = "center", fig.width = 7.5, fig.height = 4.5)
 
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+```
+
+## Nhận xét: ưu điểm, hạn chế và khác biệt trong cách diễn giải giữa hai cách tiếp cận
+
+Phần chính phân tích `Diff = Mem_Score_After - Mem_Score_Before` bằng ANOVA ba nhân tố dạng hồi quy tuyến tính, trong khi Yêu cầu mở rộng giữ nguyên hai lần đo `Before`/`After` và phân tích bằng ANOVA nhiều nhân tố với dữ liệu lặp (`Time` là nhân tố lặp, `Drug`/`Dosage`/`Happy_Sad_group` là nhân tố liên đối tượng). Hai cách tiếp cận không mâu thuẫn nhau -- phần trên đã cho thấy chúng dẫn đến cùng kết luận định tính cho `Drug`, `Dosage`, tương tác `Drug:Dosage` và `Happy_Sad_group` -- nhưng khác nhau đáng kể về cách xây dựng, giả định và những gì mỗi mô hình *có thể* trả lời.
+
+### So sánh ưu điểm và hạn chế
+
+```{r bang-so-sanh-uu-nhuoc-diem, echo=FALSE}
+bang_so_sanh <- data.frame(
+  Tieu_chi = c(
+    "Dữ liệu đưa vào mô hình",
+    "Trả lời được câu hỏi \"điểm ghi nhớ có đổi chung không?\"",
+    "Tách hiệu ứng chính Drug/Dosage/HSG khỏi phần tương tác với Time",
+    "Số giả định cần kiểm tra",
+    "Độ phức tạp khi diễn giải hệ số",
+    "Yêu cầu tái cấu trúc dữ liệu",
+    "Bậc tự do sai số sử dụng",
+    "Khả năng mở rộng thêm mốc đo (>2 lần đo)"
+  ),
+  ANOVA_Diff = c(
+    "198 dòng, mỗi người 1 giá trị Diff (đã nén Before/After)",
+    "Không thể -- Time đã bị trừ đi trước khi vào mô hình",
+    "Không tách được: partial F-test kiểm định gộp cả hiệu ứng chính lẫn tương tác trong cùng một khối",
+    "3 giả định OLS chuẩn: độc lập, chuẩn, đồng nhất phương sai",
+    "Đơn giản: một mô hình hồi quy, một tầng sai số duy nhất",
+    "Không cần -- dùng trực tiếp dữ liệu dạng rộng (1 dòng/người)",
+    "189 (mô hình `Drug * Dosage_f`)",
+    "Hạn chế: mỗi cặp mốc đo cần định nghĩa lại một biến Diff mới"
+  ),
+  ANOVA_lap = c(
+    "396 dòng (198 người x 2 lần đo), cần thêm định danh Subject",
+    "Có -- hiệu ứng chính của Time kiểm định trực tiếp",
+    "Tách rõ: `Drug` (tầng Subject) và `Drug:Time` (tầng Subject:Time) là hai dòng kiểm định riêng biệt",
+    "3 giả định trên + sphericity cho nhân tố lặp (tự động thỏa vì Time chỉ có 2 mức)",
+    "Phức tạp hơn: hai tầng sai số (`Error(Subject/Time)`), phải đọc đúng bảng ứng với từng hiệu ứng",
+    "Bắt buộc: `pivot_longer` sang dạng dài, thêm cột `Subject`",
+    "180 (tầng Subject:Time) và 180 (tầng Subject)",
+    "Tự nhiên mở rộng: chỉ cần thêm mức cho nhân tố lặp `Time`"
+  )
+)
+
+kable(bang_so_sanh,
+      col.names = c("Tiêu chí", "ANOVA trên Diff", "ANOVA đo lặp"),
+      caption = "So sánh ưu điểm/hạn chế giữa ANOVA trên Diff và ANOVA nhiều nhân tố với dữ liệu lặp") |>
+  kable_styling(bootstrap_options = c("striped", "bordered", "condensed"),
+                latex_options = c("striped", "hold_position"), full_width = FALSE) |>
+  column_spec(1, width = "3.8cm") |>
+  column_spec(2, width = "5.3cm") |>
+  column_spec(3, width = "5.3cm")
+```
+
+### Khác biệt trong cách diễn giải kết quả
+
+Dù hai cách tiếp cận thống nhất về *kết luận* cho từng nhân tố (mục 6.3), *ý nghĩa* của mỗi kết luận không hoàn toàn giống nhau. Bảng dưới đây đối chiếu trực tiếp từng nhân tố ở ba vị trí kiểm định khác nhau -- tầng `Subject` (mức ghi nhớ chung, gộp cả Before và After), tầng `Subject:Time` (mức thay đổi theo thời gian), và khối tương ứng trên `Diff` (mục 3) -- để thấy rõ khác biệt nằm ở đâu, thay vì chỉ nói chung chung "cách diễn giải khác nhau":
+
+```{r bang-chi-tiet-tung-nhan-to, echo=FALSE}
+bang_chi_tiet <- data.frame(
+  Nhan_to = c(
+    "Drug",
+    "Dosage_f",
+    "Drug:Dosage_f",
+    "Happy_Sad_group",
+    "Drug:Dosage_f:Happy_Sad_group:Time"
+  ),
+  Tang_Subject = c(
+    "F(2,180)=2.55, p=0.081 -- KHÔNG có ý nghĩa",
+    "F(2,180)=1.39, p=0.252 -- KHÔNG có ý nghĩa",
+    "F(4,180)=0.40, p=0.808 -- KHÔNG có ý nghĩa",
+    "F(1,180)=0.04, p=0.842 -- KHÔNG có ý nghĩa",
+    "(bậc 3, không chứa Time) F(4,180)=1.66, p=0.161 -- KHÔNG có ý nghĩa"
+  ),
+  Tang_SubjectTime = c(
+    "F(2,180)=33.96, p<0.0001 -- RẤT có ý nghĩa",
+    "F(2,180)=9.71, p<0.0001 -- RẤT có ý nghĩa",
+    "F(4,180)=20.28, p<0.0001 -- RẤT có ý nghĩa",
+    "F(1,180)=0.13, p=0.723 -- KHÔNG có ý nghĩa",
+    "F(4,180)=2.27, p=0.064 -- không có ý nghĩa (khá gần ngưỡng)"
+  ),
+  Khoi_tren_Diff = c(
+    "Khối Drug: F=24.60, p=1.88e-21",
+    "Khối Dosage: F=16.58, p=2.53e-15",
+    "Tương tác: F=20.06, p=8.74e-14",
+    "Khối HSG: F=1.23, p=0.282",
+    "Không tách riêng được (đã gộp trong khối HSG ở trên)"
+  )
+)
+
+kable(bang_chi_tiet,
+      col.names = c("Nhân tố", "Tầng Subject (mức chung)",
+                    "Tầng Subject:Time (mức thay đổi)", "Khối tương ứng trên Diff"),
+      caption = "Cùng một nhân tố, ba vị trí kiểm định: mức ghi nhớ chung, mức thay đổi, và khối trên Diff") |>
+  kable_styling(bootstrap_options = c("striped", "bordered", "condensed"),
+                latex_options = c("striped", "hold_position"), full_width = FALSE) |>
+  column_spec(1, width = "3cm") |>
+  column_spec(2, width = "3.6cm") |>
+  column_spec(3, width = "3.8cm") |>
+  column_spec(4, width = "3.2cm")
+```
+
+Từ bảng trên, "khác biệt trong cách diễn giải" cụ thể là:
+
+- **`Drug`, `Dosage_f` và tương tác `Drug:Dosage_f`: cùng một chữ "có ý nghĩa" nhưng chỉ đúng ở đúng một vị trí.** Cả ba đều **không có ý nghĩa** ở tầng `Subject` ($p=0{,}081$; $0{,}252$; $0{,}808$) nhưng **rất có ý nghĩa** ở tầng `Subject:Time` ($p<0{,}0001$ cho cả ba). Nói cách khác: nếu bỏ qua thời điểm đo và chỉ so trung bình `Mem_Score` chung của từng nhóm, ba nhân tố này **không hề khác nhau**; chúng chỉ khác nhau ở *mức thay đổi* từ Before sang After. ANOVA trên `Diff` chỉ nhìn thấy được đúng vế thứ hai (khối `Drug` có $p=1{,}88\times10^{-21}$), vì bản thân biến `Diff` chỉ đo phần thay đổi, không còn giữ thông tin về mức ghi nhớ chung. Vì vậy câu diễn giải đúng phải là "loại thuốc/liều lượng làm thay đổi **tốc độ suy giảm gợi nhớ**", chứ không phải "loại thuốc/liều lượng làm khác biệt khả năng gợi nhớ nói chung" -- một cách diễn giải mà chỉ ANOVA đo lặp mới phân biệt rõ được, còn ANOVA trên `Diff` không có đủ thông tin để phân biệt hai cách nói này.
+
+- **`Happy_Sad_group`: kết luận "không ý nghĩa" nhất quán ở cả ba vị trí, nên bằng chứng "không có hiệu ứng" ở đây chắc chắn hơn so với `Drug`/`Dosage`.** Vì $p=0{,}842$ (tầng `Subject`), $p=0{,}723$ (tầng `Subject:Time`) và $p=0{,}282$ (khối trên `Diff`) đều lớn hơn hẳn 0.05, có thể kết luận nhóm cảm xúc (vui/buồn) không ảnh hưởng đến điểm ghi nhớ **dù xét theo mức chung hay theo mức thay đổi** -- một kết luận mạnh hơn so với `Drug`/`Dosage`, nơi câu trả lời phụ thuộc hoàn toàn vào việc đang hỏi "mức chung" hay "mức thay đổi".
+
+- **Tương tác bậc bốn `Drug:Dosage_f:Happy_Sad_group:Time` chỉ tồn tại ở ANOVA đo lặp** ($p=0{,}064$, không có ý nghĩa nhưng khá gần ngưỡng) **vì ANOVA trên `Diff` không có cách nào tách một tương tác bậc bốn có chứa `Time` ra khỏi khối `Happy_Sad_group`** -- khối này trên `Diff` ($p=0{,}282$) đã gộp chung hiệu ứng chính lẫn mọi tương tác của `Happy_Sad_group`, không phân biệt được phần nào đến từ tương tác ba chiều với `Time`.
+
+- **Vì sao trị số F khác nhau dù kiểm định "cùng một điều": mẫu số (sai số) không giống nhau.** Partial F-test trên `Diff` dùng $RSS/189$ của một mô hình hồi quy duy nhất làm mẫu số, còn ANOVA đo lặp dùng sai số trong nội bộ đối tượng ($SS_{\text{Subject:Time}}/180$, với trung bình bình phương sai số $\approx31{,}7$) làm mẫu số riêng cho mọi hiệu ứng có chứa `Time`. Có thể thấy rõ chênh lệch này qua chính hiệu ứng `Time`: paired t-test ở mục 3.1 cho $t=3{,}8657$ (tương đương $t^2\approx14{,}9$), trong khi hiệu ứng chính `Time` ở ANOVA đo lặp cho $F(1,180)=27{,}27$ -- gần gấp đôi $t^2$ dù cùng kiểm định "trung bình `Diff` có khác 0 hay không". Lý do: mẫu số của paired t-test là toàn bộ phương sai của `Diff` giữa 198 người ($SD\approx10{,75}$, phương sai $\approx115{,}7$), trong khi mẫu số của ANOVA đo lặp chỉ là phần phương sai **còn lại sau khi đã tách riêng phần biến động do `Drug`, `Dosage_f`, `Happy_Sad_group` và các tương tác của chúng** ($\approx31{,}7$, nhỏ hơn khoảng 3,6 lần). Nói cách khác, ANOVA đo lặp "mượn sức mạnh" từ việc đã phân nhóm theo `Drug × Dosage × HSG`, cho kiểm định `Time` nhạy hơn (ít bị nhiễu bởi biến động giữa các nhóm) so với việc gộp chung mọi nguồn biến động vào một phép kiểm định trung bình đơn giản như paired t-test.
+
+### Hạn chế chung của cả hai cách tiếp cận
+
+- Cả hai đều dựa trên giả định phần dư có phân phối chuẩn; mục 4 đã cho thấy giả định này bị vi phạm nhẹ ở mô hình trên `Diff` (Shapiro--Wilk $p\approx7{,}8\times10^{-6}$), chủ yếu do vài quan trắc cực trị -- hạn chế này nhiều khả năng cũng ảnh hưởng đến ANOVA đo lặp vì cùng dùng chung một bộ dữ liệu và cùng những quan trắc cực trị đó.
+- Cỡ mẫu mỗi tổ hợp nhân tố còn nhỏ (khoảng 10--12 quan trắc/ô trong thiết kế 18 tổ hợp), nên các hiệu ứng có kích thước nhỏ -- như `Happy_Sad_group` hoặc tương tác bậc bốn `Drug:Dosage_f:Happy_Sad_group:Time` -- khó được ước lượng chính xác ở cả hai cách tiếp cận.
+- Không cách tiếp cận nào một mình đủ để trả lời trọn vẹn câu hỏi nghiên cứu: ANOVA trên `Diff` đơn giản, dễ diễn giải và đủ dùng nếu câu hỏi chỉ là "nhân tố nào ảnh hưởng đến mức thay đổi"; ANOVA đo lặp phức tạp hơn nhưng cần thiết nếu còn muốn biết liệu bản thân điểm ghi nhớ (không phân biệt thời điểm) có khác nhau giữa các nhóm hay không.
+
+### Kết luận
+
+Hai cách tiếp cận đóng vai trò **bổ trợ** hơn là thay thế nhau. ANOVA ba nhân tố trên `Diff` phù hợp làm mô hình chính của báo cáo vì đơn giản, dễ trình bày và đã trả lời đúng trọng tâm câu hỏi đặt ra (nhân tố nào ảnh hưởng đến sự thay đổi khả năng gợi nhớ). ANOVA nhiều nhân tố với dữ liệu lặp phức tạp hơn về cấu trúc và cách đọc kết quả, nhưng bù lại tách bạch được hiệu ứng chính của `Time` và làm rõ ranh giới giữa "khác nhau về mức ghi nhớ chung" và "khác nhau về mức thay đổi theo thời gian" -- một sự phân biệt quan trọng mà mô hình trên `Diff` gộp chung lại.

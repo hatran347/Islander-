@@ -1,8 +1,8 @@
-So sánh với mô hình ANOVA nhiều nhân tố trên Diff
+## So sánh với mô hình ANOVA nhiều nhân tố trên Diff
 
-Vì Time chỉ có hai mức nên các tương tác có chứa Time trong mô hình ANOVA lặp có thể đối chiếu với các hiệu ứng tương ứng trong mô hình ANOVA nhiều nhân tố trên Diff = After - Before.
+Vì `Time` chỉ có hai mức nên các tương tác có chứa `Time` trong mô hình ANOVA lặp có thể đối chiếu với các hiệu ứng tương ứng trong mô hình ANOVA nhiều nhân tố trên `Diff = After - Before`.
 
-{r}
+```{r bang-time-nhac-lai}
 tom_tat_rm <- summary(model_rm_full)
 
 ten_tang_time <- grep(
@@ -12,94 +12,82 @@ ten_tang_time <- grep(
 )
 
 bang_time_raw <- tom_tat_rm[[ten_tang_time]][[1]]
-
 bang_time_raw
+```
 
-ANOVA lặp phân tích trực tiếp hai lần đo Before và After, trong khi mô hình ANOVA nhiều nhân tố ở phần chính sử dụng Diff = After - Before. Kết quả của hai cách tiếp cận được so sánh theo nội dung kiểm định như sau:
+ANOVA lặp phân tích trực tiếp hai lần đo Before và After, trong khi mô hình ANOVA nhiều nhân tố ở phần chính sử dụng `Diff = After - Before`. Kết quả của hai cách tiếp cận được so sánh theo nội dung kiểm định như sau:
 
-Nội dung
+```{r bang-so-sanh-anova-lap-diff, echo=FALSE}
+bang_so_sanh_lap_diff <- data.frame(
+  Noi_dung = c(
+    "Ảnh hưởng của loại thuốc đến mức thay đổi",
+    "Ảnh hưởng của liều lượng đến mức thay đổi",
+    "Tương tác giữa thuốc và liều lượng",
+    "Vai trò của nhóm Happy/Sad"
+  ),
+  ANOVA_lap = c(
+    "Drug:Time: F=33.957, p<0.0001",
+    "Dosage_f:Time: F=9.709, p<0.0001",
+    "Drug:Dosage_f:Time: F=20.280, p<0.0001",
+    "Các tương tác chứa Happy_Sad_group:Time đều có p>0.05"
+  ),
+  ANOVA_Diff = c(
+    "Khối Drug: F=24.60, p=1.88e-21",
+    "Khối Dosage: F=16.58, p=2.53e-15",
+    "Drug:Dosage_f: F=20.06, p=8.74e-14",
+    "Khối Happy_Sad_group: F=1.23, p=0.282"
+  ),
+  So_sanh = c(
+    "Cùng có ý nghĩa",
+    "Cùng có ý nghĩa",
+    "Cùng có ý nghĩa",
+    "Cùng không có ý nghĩa"
+  )
+)
 
-ANOVA lặp
+kable(bang_so_sanh_lap_diff,
+      col.names = c("Nội dung", "ANOVA lặp", "ANOVA nhiều nhân tố trên Diff", "So sánh"),
+      caption = "Đối chiếu kết luận giữa ANOVA lặp và ANOVA nhiều nhân tố trên Diff") |>
+  kable_styling(bootstrap_options = c("striped", "bordered", "condensed"),
+                latex_options = c("striped", "hold_position"), full_width = FALSE) |>
+  column_spec(1, width = "3.5cm") |>
+  column_spec(2, width = "3.8cm") |>
+  column_spec(3, width = "3.8cm") |>
+  column_spec(4, width = "2.2cm")
+```
 
-ANOVA nhiều nhân tố trên Diff
+Các giá trị $F$ của hai mô hình không hoàn toàn giống nhau vì các giả thuyết kiểm định không hoàn toàn giống nhau. Trong ANOVA lặp, từng tương tác có chứa `Time` được kiểm định riêng, với mẫu số là sai số trong nội bộ đối tượng (`Subject:Time`). Trong phần chính, partial $F$-test kiểm định đồng thời cả một khối hiệu ứng trên `Diff`, với mẫu số là $RSS$ của mô hình hồi quy.
 
-So sánh
+Tuy vậy, hai phương pháp đưa ra kết luận thống nhất: loại thuốc, liều lượng và tương tác giữa thuốc với liều lượng đều liên quan đến mức thay đổi Before--After. Ngược lại, chưa có đủ bằng chứng cho thấy `Happy_Sad_group` có ảnh hưởng rõ rệt đến mức thay đổi này.
 
-Ảnh hưởng của loại thuốc đến mức thay đổi
+Hiệu ứng chính của `Time` được đối chiếu với việc kiểm định trung bình `Diff = After - Before` có bằng 0 hay không.
 
-Drug:Time: $F=33.957,\ p<0.0001$
-
-Khối Drug: $F=24.60,\ p=1.88\times10^{-21}$
-
-Cùng có ý nghĩa
-
-Ảnh hưởng của liều lượng đến mức thay đổi
-
-Dosage_f:Time: $F=9.709,\ p<0.0001$
-
-Khối Dosage: $F=16.58,\ p=2.53\times10^{-15}$
-
-Cùng có ý nghĩa
-
-Tương tác giữa thuốc và liều lượng
-
-Drug:Dosage_f:Time: $F=20.280,\ p<0.0001$
-
-Drug:Dosage_f: $F=20.06,\ p=8.74\times10^{-14}$
-
-Cùng có ý nghĩa
-
-Vai trò của nhóm Happy/Sad
-
-Các tương tác chứa Happy_Sad_group:Time đều có $p>0.05$
-
-Khối Happy_Sad_group: $F=1.23,\ p=0.282$
-
-Cùng không có ý nghĩa
-
-Các giá trị $F$ của hai mô hình không hoàn toàn giống nhau vì các giả thuyết kiểm định không hoàn toàn giống nhau. Trong ANOVA lặp, từng tương tác có chứa Time được kiểm định riêng. Trong phần chính, partial $F$-test kiểm định đồng thời cả một khối hiệu ứng trên Diff.
-
-Tuy vậy, hai phương pháp đưa ra kết luận thống nhất: loại thuốc, liều lượng và tương tác giữa thuốc với liều lượng đều liên quan đến mức thay đổi Before--After. Ngược lại, chưa có đủ bằng chứng cho thấy Happy_Sad_group có ảnh hưởng rõ rệt đến mức thay đổi này.
-
-Hiệu ứng chính của Time được đối chiếu với việc kiểm định trung bình Diff = After - Before có bằng 0 hay không.
-
-{r so-sanh-hieu-ung-time}
+```{r so-sanh-hieu-ung-time}
 kiem_dinh_diff <- t.test(
   df_model$Diff,
   mu = 0
 )
 
 bang_time_chinh <- data.frame(
-  Trung_binh_Diff = mean(
-    df_model$Diff,
-    na.rm = TRUE
-  ),
+  Trung_binh_Diff = mean(df_model$Diff, na.rm = TRUE),
   t = unname(kiem_dinh_diff$statistic),
   df = unname(kiem_dinh_diff$parameter),
   p_value = kiem_dinh_diff$p.value
 )
 
-knitr::kable(
+kable(
   bang_time_chinh,
   digits = 4,
-  col.names = c(
-    "Diff trung bình",
-    "t",
-    "df",
-    "p-value"
-  ),
+  col.names = c("Diff trung bình", "t", "df", "p-value"),
   caption = "Kiểm định trung bình Diff có bằng 0 hay không"
 ) |>
-  kableExtra::kable_styling(
-    bootstrap_options = c(
-      "striped",
-      "bordered",
-      "condensed"
-    ),
+  kable_styling(
+    bootstrap_options = c("striped", "bordered", "condensed"),
     full_width = FALSE
   )
+```
 
-Nhận xét kết quả
+### Nhận xét kết quả
 
 Kiểm định sự thay đổi chung giữa hai thời điểm được thực hiện với:
 
@@ -109,12 +97,12 @@ H_1:\mu_{\text{Diff}}\neq 0,
 \quad
 \text{với }\text{Diff}=\text{After}-\text{Before}.$$
 
-Kiểm định Diff cho kết quả $\overline{Diff}=2.9545$, $t(197)=3.8657$ và $p=0.0002<0.05$. Do đó, có bằng chứng cho thấy giá trị Mem_Score trung bình thay đổi có ý nghĩa giữa hai thời điểm Before và After. Vì Diff = After - Before có giá trị dương, Mem_Score ở thời điểm After trung bình cao hơn Before khoảng $2.95$ đơn vị.
+Kiểm định Diff cho kết quả $\overline{Diff}=2.9545$, $t(197)=3.8657$ và $p=0.0002<0.05$. Do đó, có bằng chứng cho thấy giá trị Mem_Score trung bình thay đổi có ý nghĩa giữa hai thời điểm Before và After. Vì Diff = After - Before có giá trị dương, Mem_Score ở thời điểm After trung bình cao hơn Before khoảng $2.95$ đơn vị -- nhất quán với hiệu ứng chính của `Time` ở mục 6.1--6.2 ($F(1,180)\approx27.27$, $p\approx4.9\times10^{-7}$).
 
-Kết quả so sánh cho thấy mô hình ANOVA lặp và mô hình ANOVA nhiều nhân tố trên Diff đưa ra kết quả hoàn toàn thống nhất đối với các hiệu ứng tương ứng. Cụ thể, Drug:Time và hiệu ứng Drug đều có $F=33.957,\ p<0.0001$, cho thấy mức thay đổi trước--sau khác nhau giữa các loại thuốc. Tương tự, Dosage_f:Time và hiệu ứng Dosage_f đều có $F=9.709,\ p<0.0001$, chứng tỏ mức thay đổi cũng khác nhau giữa các mức liều.
+Kết quả so sánh ở bảng trên cho thấy mô hình ANOVA lặp và mô hình ANOVA nhiều nhân tố trên `Diff` đưa ra **kết luận thống nhất** đối với từng hiệu ứng, dù giá trị $F$ không bằng nhau tuyệt đối (vì dùng mẫu số khác nhau, như đã giải thích ở trên). Cụ thể, `Drug:Time` ($F=33.957$) và khối `Drug` trên `Diff` ($F=24.60$) đều có $p<0.0001$, cùng cho thấy mức thay đổi trước--sau khác nhau giữa các loại thuốc. Tương tự, `Dosage_f:Time` ($F=9.709$) và khối `Dosage` trên `Diff` ($F=16.58$) đều có $p<0.0001$, chứng tỏ mức thay đổi cũng khác nhau giữa các mức liều.
 
-Đáng chú ý, tương tác Drug:Dosage_f:Time trong ANOVA lặp và tương tác Drug:Dosage_f trong mô hình trên Diff đều có $F=20.280,\ p<0.0001$. Như vậy, ảnh hưởng của liều lượng lên mức thay đổi Before--After phụ thuộc vào loại thuốc; do đó không nên diễn giải tác động của liều lượng tách biệt khỏi loại thuốc.
+Đáng chú ý, tương tác `Drug:Dosage_f:Time` trong ANOVA lặp ($F=20.280$) và tương tác `Drug:Dosage_f` trong mô hình trên `Diff` ($F=20.06$) có giá trị F gần nhau nhất trong bốn hàng so sánh và đều có $p<0.0001$. Như vậy, ảnh hưởng của liều lượng lên mức thay đổi Before--After phụ thuộc vào loại thuốc; do đó không nên diễn giải tác động của liều lượng tách biệt khỏi loại thuốc.
 
-Ngược lại, Happy_Sad_group:Time và các tương tác giữa Happy_Sad_group với Drug hoặc Dosage_f đều không có ý nghĩa thống kê do các p-value đều lớn hơn $0.05$. Tương tác bậc cao nhất Drug:Dosage_f:Happy_Sad_group:Time cũng không có ý nghĩa ở mức 5%, với $F=2.266$ và $p=0.06389$, mặc dù kết quả này tương đối gần ngưỡng $0.05$.
+Ngược lại, `Happy_Sad_group:Time` và các tương tác giữa `Happy_Sad_group` với `Drug` hoặc `Dosage_f` đều không có ý nghĩa thống kê do các p-value đều lớn hơn $0.05$. Tương tác bậc cao nhất `Drug:Dosage_f:Happy_Sad_group:Time` cũng không có ý nghĩa ở mức 5%, với $F=2.266$ và $p=0.06389$, mặc dù kết quả này tương đối gần ngưỡng $0.05$.
 
 Nhìn chung, hai phương pháp đều dẫn đến cùng một kết luận: giá trị Mem_Score có sự thay đổi giữa Before và After, và mức thay đổi này phụ thuộc chủ yếu vào loại thuốc, liều lượng và sự kết hợp giữa hai nhân tố. Chưa có đủ bằng chứng cho thấy nhóm Happy/Sad làm thay đổi rõ rệt mối quan hệ này.

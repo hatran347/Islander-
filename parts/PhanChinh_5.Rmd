@@ -86,14 +86,10 @@ anova(mo_hinh_ancova, mo_hinh_ancova_doc_lech)
 
 Ở Phần 4, ảnh hưởng của hai quan trắc cực trị (dòng 49, dòng 110) được đánh giá bằng cách *loại bỏ thủ công* rồi ước lượng lại mô hình — cách làm đơn giản nhưng phụ thuộc vào một ngưỡng tuỳ chọn ($|r_i^*|>3$). Một cách tiếp cận có nguyên tắc hơn là dùng **hồi quy vững** (MM-estimation, `robustbase::lmrob`), trong đó mọi quan trắc đều được giữ lại nhưng các điểm có phần dư lớn được **tự động giảm trọng số** một cách liên tục thay vì bị loại bỏ hoàn toàn hay giữ nguyên trọng số 1:
 
-Vì `contrasts(df_model$Dosage_f)` đã được đổi thành `contr.treatment(3)` với tên cột mặc định `"2"`/`"3"` ở Phần 3 (mục 3.2), một bản sao cục bộ của dữ liệu với `Dosage_f` được mã hoá lại bằng nhãn gốc (`Low`/`Medium`/`High`) được dùng riêng cho mục này, chỉ nhằm mục đích hiển thị tên hệ số dễ đọc hơn — hai cách mã hoá tương ứng với cùng một không gian mô hình nên giá trị ước lượng, sai số chuẩn và p-value không đổi:
+Vì `Dosage_f` đã được mã hoá là factor không thứ tự với contrast mặc định `contr.treatment` từ Phần 1--3, tên hệ số hiển thị dưới đây đã là nhãn thật (`Dosage_fMedium`, `Dosage_fHigh`), không cần mã hoá lại:
 
 ```{r robust-regression}
-df_model_p5 <- df_model |>
-  mutate(Dosage_f = factor(Dosage_f, levels = c("Low", "Medium", "High"), ordered = FALSE))
-mo_hinh_cuoi_cung_p5 <- lm(Diff ~ Drug * Dosage_f, data = df_model_p5)
-
-mo_hinh_robust <- lmrob(Diff ~ Drug * Dosage_f, data = df_model_p5)
+mo_hinh_robust <- lmrob(Diff ~ Drug * Dosage_f, data = df_model)
 summary(mo_hinh_robust)$coefficients |> round(4)
 
 # Cac quan trac bi giam trong so manh nhat
@@ -103,8 +99,8 @@ sort(trong_so)[1:5]
 
 ```{r so-sanh-ols-robust, echo=FALSE, fig.width=9, fig.height=4.2}
 so_sanh_he_so <- bind_rows(
-  tibble(He_so = names(coef(mo_hinh_cuoi_cung_p5)), Estimate = coef(mo_hinh_cuoi_cung_p5),
-         CI_low = confint(mo_hinh_cuoi_cung_p5)[, 1], CI_high = confint(mo_hinh_cuoi_cung_p5)[, 2],
+  tibble(He_so = names(coef(mo_hinh_cuoi_cung)), Estimate = coef(mo_hinh_cuoi_cung),
+         CI_low = confint(mo_hinh_cuoi_cung)[, 1], CI_high = confint(mo_hinh_cuoi_cung)[, 2],
          Phuong_phap = "OLS"),
   tibble(He_so = names(coef(mo_hinh_robust)), Estimate = coef(mo_hinh_robust),
          CI_low = confint(mo_hinh_robust)[, 1], CI_high = confint(mo_hinh_robust)[, 2],
@@ -218,6 +214,6 @@ Toàn bộ các phân tích thay thế ở trên đều **xác nhận lại**, c
 
 Ngoài các phân tích có thể thực hiện trực tiếp trên bộ dữ liệu hiện có, một số cải tiến sẽ cần **thu thập thêm dữ liệu** và nằm ngoài phạm vi bộ dữ liệu này:
 
-- **Cỡ mẫu mỗi ô còn nhỏ** (khoảng 21--23 quan trắc trong mỗi tổ hợp `Drug x Dosage_f`). Với cỡ mẫu lớn hơn, các hiệu ứng có kích thước nhỏ hơn — như `Happy_Sad_group` ($\eta^2_{partial}$ chưa được ước lượng do đã bị loại khỏi mô hình cuối, nhưng kiểm định gộp ở Phần 3 cho $p\approx0{,}282$) hoặc tương tác bậc bốn `Drug:Dosage_f:Happy_Sad_group:Time` ở Yêu cầu mở rộng ($p\approx0{,}044$, khá sát ngưỡng) — có thể được ước lượng chính xác hơn thay vì nằm ở vùng chưa đủ bằng chứng.
+- **Cỡ mẫu mỗi ô còn nhỏ** (khoảng 21--23 quan trắc trong mỗi tổ hợp `Drug x Dosage_f`). Với cỡ mẫu lớn hơn, các hiệu ứng có kích thước nhỏ hơn — như `Happy_Sad_group` ($\eta^2_{partial}$ chưa được ước lượng do đã bị loại khỏi mô hình cuối, nhưng kiểm định gộp ở Phần 3 cho $p\approx0{,}282$) hoặc tương tác bậc bốn `Drug:Dosage_f:Happy_Sad_group:Time` ở Yêu cầu mở rộng ($p\approx0{,}064$, khá sát ngưỡng) — có thể được ước lượng chính xác hơn thay vì nằm ở vùng chưa đủ bằng chứng.
 - **Chỉ có ba mức liều rời rạc** nên đường cong liều--đáp ứng của Alprazolam mới chỉ được quan sát tại ba điểm. Nếu thu thập thêm dữ liệu ở các mức liều trung gian, có thể chuyển từ ANOVA (Dosage như nhân tố phân loại) sang **hồi quy phi tuyến theo liều lượng** (ví dụ mô hình dạng Emax hoặc log-liều tuyến tính từng khúc), mô tả trực tiếp hình dạng quan hệ liều--đáp ứng thay vì chỉ so sánh ba mức rời rạc.
 - Về mặt mô hình cho dữ liệu lặp trước--sau, Yêu cầu mở rộng đã trình bày một hướng tiếp cận thay thế đầy đủ hơn — ANOVA nhiều nhân tố với dữ liệu lặp (repeated-measures/mixed ANOVA trên cả `Mem_Score_Before` và `Mem_Score_After`, thay vì nén thành `Diff`) — cho phép tách riêng hiệu ứng chính của `Time`. Đây là một cải tiến quan trọng bổ sung cho các đề xuất ở Phần 5, được trình bày riêng ở phần sau do khối lượng nội dung lớn.

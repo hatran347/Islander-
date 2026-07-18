@@ -85,7 +85,8 @@ head(df)
 summary(df)
 ```
 
-Quá trình khám phá dữ liệu ban đầu cho thấy: 
+Quá trình khám phá dữ liệu ban đầu cho thấy:
+
 - `age` có giá trị nhỏ nhất là 24, trong khi đề bài nêu toàn bộ người tham gia đều trên 25 tuổi. Cần kiểm tra kỹ hơn.
 - `Diff` được tính bằng `Mem_Score_After - Mem_Score_Before`, cần kiểm tra tính nhất quán.
 - `Dosage` là số nhưng bản chất là nhân tố có thứ tự; `Drug` và `Happy_Sad_group` là ký tự viết tắt, cần mã hoá lại thành factor với nhãn đầy đủ để tránh nhầm lẫn.
@@ -136,8 +137,7 @@ if (!is.factor(df$Drug)) {
   df <- df |>
     mutate(
       Dosage_f = factor(Dosage, levels = c(1, 2, 3),
-                         labels = c("Low", "Medium", "High"),
-                         ordered = TRUE),
+                         labels = c("Low", "Medium", "High")),
       Drug = factor(Drug, levels = c("A", "T", "S"),
                     labels = c("Alprazolam", "Triazolam", "Placebo")),
       Drug = relevel(Drug, ref = "Placebo"),
@@ -221,13 +221,13 @@ p_box <- ggplot(df, aes(x = "", y = Diff)) +
   geom_boxplot(outlier.shape = NA, fill = "steelblue", alpha = 0.3, width = 0.3) +
   geom_jitter(aes(color = Diff_outlier), width = 0.08, size = 2, alpha = 0.8) +
   scale_color_manual(values = c(`FALSE` = "grey40", `TRUE` = "firebrick")) +
-  labs(title = "Boxplot Diff - danh dau outlier", x = NULL, y = "Diff (giay)", color = "Outlier")
+  labs(title = "Boxplot Diff - đánh dấu outlier", x = NULL, y = "Diff (giây)", color = "Outlier")
 
 p_hist <- ggplot(df, aes(x = Diff, fill = Diff_outlier)) +
   geom_histogram(bins = 30, color = "white") +
   geom_vline(xintercept = c(nguong_duoi, nguong_tren), linetype = "dashed", color = "firebrick") +
   scale_fill_manual(values = c(`FALSE` = "steelblue", `TRUE` = "firebrick")) +
-  labs(title = "Phân phối Diff - ngưỡng 1.5xIQR", x = "Diff (giay)", y = "Số quan trắc", fill = "Outlier")
+  labs(title = "Phân phối Diff - ngưỡng 1.5xIQR", x = "Diff (giây)", y = "Số quan trắc", fill = "Outlier")
 
 grid.arrange(p_box, p_hist, ncol = 2)
 ```
@@ -271,7 +271,7 @@ p1 <- ggplot(df_model, aes(x = Diff)) +
 
 p2 <- ggplot(df_model, aes(sample = Diff)) +
   stat_qq(color = "steelblue") + stat_qq_line(color = "firebrick") +
-  labs(title = "QQ-plot cua Diff")
+  labs(title = "QQ-plot của Diff")
 
 grid.arrange(p1, p2, ncol = 2)
 
@@ -288,17 +288,17 @@ df_model |>
 p_drug <- ggplot(df_model, aes(x = Drug, y = Diff, fill = Drug)) +
   geom_boxplot(show.legend = FALSE) +
   geom_hline(yintercept = 0, linetype = "dashed") +
-  labs(title = "Diff theo Drug", x = NULL, y = "Diff (giay)")
+  labs(title = "Diff theo Drug", x = NULL, y = "Diff (giây)")
 
 p_dosage <- ggplot(df_model, aes(x = Dosage_f, y = Diff, fill = Dosage_f)) +
   geom_boxplot(show.legend = FALSE) +
   geom_hline(yintercept = 0, linetype = "dashed") +
-  labs(title = "Diff theo Dosage", x = NULL, y = "Diff (giay)")
+  labs(title = "Diff theo Dosage", x = NULL, y = "Diff (giây)")
 
 p_group <- ggplot(df_model, aes(x = Happy_Sad_group, y = Diff, fill = Happy_Sad_group)) +
   geom_boxplot(show.legend = FALSE) +
   geom_hline(yintercept = 0, linetype = "dashed") +
-  labs(title = "Diff theo Happy_Sad_group", x = NULL, y = "Diff (giay)") +
+  labs(title = "Diff theo Happy_Sad_group", x = NULL, y = "Diff (giây)") +
   theme(plot.title = element_text(size = 11))
 
 grid.arrange(p_drug, p_dosage, p_group, ncol = 3)
@@ -316,7 +316,7 @@ Quan sát ban đầu:
 ggplot(df_model, aes(x = Dosage_f, y = Diff, fill = Drug)) +
   geom_boxplot() +
   geom_hline(yintercept = 0, linetype = "dashed") +
-  labs(title = "Diff theo Dosage, phân theo Drug", x = "Dosage", y = "Diff (giay)")
+  labs(title = "Diff theo Dosage, phân theo Drug", x = "Dosage", y = "Diff (giây)")
 ```
 
 Xu hướng tăng của `Diff` theo `Dosage` chỉ thể hiện rõ ở nhóm **Alprazolam**; Triazolam và Placebo gần như không đổi theo hàm lượng. Đây là dấu hiệu cho thấy **có thể tồn tại tương tác `Drug × Dosage`** — cần đưa số hạng tương tác vào mô hình ANOVA ở Phần 3 thay vì chỉ dùng mô hình cộng (additive).
